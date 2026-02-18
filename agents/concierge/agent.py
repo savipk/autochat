@@ -19,7 +19,7 @@ from agents.concierge.prompts import CONCIERGE_SYSTEM_PROMPT
 def _create_agent_tool(agent: BaseAgent, name: str, description: str):
     """Wrap a specialist agent as a tool for the concierge to call."""
 
-    @tool(name=name, description=description)
+    @tool(name, description=description)
     async def agent_tool(message: str) -> str:
         result = await agent.invoke(message)
         messages = result.get("messages", [])
