@@ -1,0 +1,13 @@
+.git
+.gitignore
+.DS_Store
+__pycache__
+**/__pycache__
+.venv
+.env
+.vscode
+.cursor
+.claude
+.chainlit
+.files
+tests
