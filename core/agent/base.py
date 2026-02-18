@@ -22,7 +22,7 @@ class BaseAgent:
         kwargs: dict[str, Any] = {
             "model": self.config.llm,
             "tools": self.config.tools,
-            "prompt": self.config.system_prompt,
+            "system_prompt": self.config.system_prompt,
             "name": self.config.name,
             "checkpointer": self.checkpointer,
         }

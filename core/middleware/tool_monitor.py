@@ -11,13 +11,13 @@ logger = logging.getLogger("autochat.tools")
 
 
 @wrap_tool_call
-async def tool_monitor_middleware(call, context, config):
+async def tool_monitor_middleware(request, handler):
     """Logs tool calls with timing information."""
-    tool_name = getattr(call, "tool_name", "unknown")
+    tool_name = request.tool_call.get("name", "unknown")
     logger.info("Tool call started: %s", tool_name)
     start = time.monotonic()
     try:
-        result = await call()
+        result = await handler(request)
         elapsed = time.monotonic() - start
         logger.info("Tool call completed: %s (%.2fs)", tool_name, elapsed)
         return result

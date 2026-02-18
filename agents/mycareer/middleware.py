@@ -3,16 +3,23 @@ MyCareer-specific middleware.
 """
 
 from langchain.agents.middleware import dynamic_prompt, wrap_tool_call
+from langchain_core.messages import ToolMessage
 
 from core.config import PROFILE_LOW_COMPLETION_THRESHOLD
 
 
+def _get_context(request):
+    """Extract context from request runtime (e.g. from ainvoke(..., context=...))."""
+    return getattr(getattr(request, "runtime", None), "context", None)
+
+
 @dynamic_prompt
-async def mycareer_personalization(state, context, config):
+async def mycareer_personalization(request):
     """Appends user profile context to the system prompt at runtime."""
+    context = _get_context(request)
     profile = getattr(context, "profile", {}) if context else {}
     if not profile:
-        return None
+        return request.system_prompt or ""
 
     core = profile.get("core", {})
     name_info = core.get("name", {})
@@ -38,19 +45,21 @@ async def mycareer_personalization(state, context, config):
     if completion_score is not None:
         parts.append(f"Profile Completion: {completion_score}%")
 
-    return "\n".join(parts)
+    base = request.system_prompt or ""
+    return (base + "\n" + "\n".join(parts)) if base else "\n".join(parts)
 
 
 @wrap_tool_call
-async def profile_warning_middleware(call, context, config):
+async def profile_warning_middleware(request, handler):
     """
     Appends a warning to get_matches results when profile completion is < 50%.
     No tools are blocked -- the LLM decides what to call.
     """
-    result = await call()
-    tool_name = getattr(call, "tool_name", "")
+    result = await handler(request)
+    tool_name = request.tool_call.get("name", "")
 
     if tool_name == "get_matches":
+        context = _get_context(request)
         completion_score = getattr(context, "completion_score", 100) if context else 100
         if completion_score < PROFILE_LOW_COMPLETION_THRESHOLD:
             warning = (
@@ -58,7 +67,12 @@ async def profile_warning_middleware(call, context, config):
                 "Matching could be significantly better with a more complete profile. "
                 "Consider adding skills, experience, or preferences."
             )
-            if isinstance(result, dict):
-                result["profile_warning"] = warning
+            if isinstance(result, ToolMessage):
+                content = result.content if isinstance(result.content, str) else str(result.content)
+                result = ToolMessage(
+                    content=content + warning,
+                    tool_call_id=result.tool_call_id,
+                    name=result.name,
+                )
 
     return result

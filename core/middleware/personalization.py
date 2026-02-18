@@ -5,15 +5,21 @@ Dynamic prompt middleware for profile-based personalization.
 from langchain.agents.middleware import dynamic_prompt
 
 
+def _get_context(request):
+    """Extract context from request runtime (e.g. from ainvoke(..., context=...))."""
+    return getattr(getattr(request, "runtime", None), "context", None)
+
+
 @dynamic_prompt
-async def personalization_middleware(state, context, config):
+async def personalization_middleware(request):
     """
     Appends user profile context to the system prompt at runtime.
     The base system prompt is set on the agent; this adds profile info dynamically.
     """
+    context = _get_context(request)
     profile = getattr(context, "profile", {}) if context else {}
     if not profile:
-        return None
+        return request.system_prompt or ""
 
     core = profile.get("core", {})
     name_info = core.get("name", {})
@@ -39,4 +45,5 @@ async def personalization_middleware(state, context, config):
     if completion_score is not None:
         parts.append(f"Profile Completion: {completion_score}%")
 
-    return "\n".join(parts)
+    base = request.system_prompt or ""
+    return (base + "\n" + "\n".join(parts)) if base else "\n".join(parts)
