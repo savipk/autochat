@@ -2,7 +2,7 @@
 Dynamic prompt middleware for profile-based personalization.
 """
 
-from langchain.agents import dynamic_prompt
+from langchain.agents.middleware import dynamic_prompt
 
 
 @dynamic_prompt

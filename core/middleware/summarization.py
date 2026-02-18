@@ -18,7 +18,7 @@ def create_summarization_middleware(
     Uses LangChain's built-in SummarizationMiddleware to compress
     conversation history once it exceeds max_messages.
     """
-    from langchain.agents import SummarizationMiddleware
+    from langchain.agents.middleware import SummarizationMiddleware
 
     return SummarizationMiddleware(
         max_messages=max_messages,

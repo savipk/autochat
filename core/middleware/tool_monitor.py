@@ -5,7 +5,7 @@ Tool call monitoring middleware for logging and observability.
 import logging
 import time
 
-from langchain.agents import wrap_tool_call
+from langchain.agents.middleware import wrap_tool_call
 
 logger = logging.getLogger("autochat.tools")
 

@@ -2,7 +2,7 @@
 MyCareer-specific middleware.
 """
 
-from langchain.agents import dynamic_prompt, wrap_tool_call
+from langchain.agents.middleware import dynamic_prompt, wrap_tool_call
 
 from core.config import PROFILE_LOW_COMPLETION_THRESHOLD
 
