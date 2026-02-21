@@ -1,12 +1,15 @@
 """
 Profile analyzer tool -- Functional implementation.
-Copied AS IS from tpchat/src/tools.py.
 """
 
+import logging
 from typing import Any
 
 from langchain_core.tools import tool
 
+from core.profile import load_profile
+
+logger = logging.getLogger("chatbot.tools")
 
 PROFILE_COMPLETION_THRESHOLD = 80
 
@@ -16,11 +19,15 @@ def profile_analyzer(completion_threshold: int = PROFILE_COMPLETION_THRESHOLD) -
     """Analyzes the user's profile to provide a completion score based on missing
     or insufficient information. Determines if the profile is complete enough for
     job matching and provides insights and recommended next actions."""
-    raise RuntimeError("profile_analyzer requires a profile; use _run_with_profile instead")
+    return run_profile_analyzer(completion_threshold=completion_threshold)
 
 
-def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PROFILE_COMPLETION_THRESHOLD) -> dict[str, Any]:
-    """Actual implementation that receives profile from the agent context."""
+def run_profile_analyzer(completion_threshold: int = PROFILE_COMPLETION_THRESHOLD) -> dict[str, Any]:
+    """Analyze the profile loaded from the configured data path."""
+    if not isinstance(completion_threshold, int) or completion_threshold < 0 or completion_threshold > 100:
+        return {"success": False, "error": "completion_threshold must be an integer between 0 and 100."}
+
+    profile = load_profile()
     score = 0
     missing_sections: list[str] = []
     insights: list[dict[str, Any]] = []
@@ -31,7 +38,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             return len(value) > 0
         return bool(value)
 
-    # Experience
     exp_ok = has_items(profile.get("experience", {}).get("experiences", []))
     exp_score = 25 if exp_ok else 0
     score += exp_score
@@ -45,7 +51,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             "recommendation": "Add at least one job with title, company, and dates"
         })
 
-    # Qualification
     qual_ok = has_items(profile.get("qualification", {}).get("educations", []))
     qual_score = 15 if qual_ok else 0
     score += qual_score
@@ -59,7 +64,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             "recommendation": "Add a degree or certification"
         })
 
-    # Skills
     skills = profile.get("skills")
     if isinstance(skills, dict):
         skills_ok = has_items(skills.get("top", [])) or has_items(skills.get("additional", []))
@@ -77,7 +81,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             "recommendation": "Infer or manually add top 5 skills"
         })
 
-    # Career Aspiration Preference
     aspiration_ok = has_items(profile.get("careerAspirationPreference", {}).get("preferredAspirations", []))
     aspiration_score = 10 if aspiration_ok else 0
     score += aspiration_score
@@ -91,7 +94,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             "recommendation": "Add preferred career aspirations"
         })
 
-    # Career Location Preference
     location_pref = profile.get("careerLocationPreference", {})
     preferred_regions = location_pref.get("preferredRelocationRegions", [])
     relocation_timeline = location_pref.get("preferredRelocationTimeline", {})
@@ -109,7 +111,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             "recommendation": "Add preferred relocation regions or indicate relocation preference"
         })
 
-    # Career Role Preference
     role_ok = has_items(profile.get("careerRolePreference", {}).get("preferredRoles", []))
     role_score = 10 if role_ok else 0
     score += role_score
@@ -123,7 +124,6 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
             "recommendation": "Add preferred roles or role classifications"
         })
 
-    # Languages
     lang_ok = has_items(profile.get("language", {}).get("languages", []))
     lang_score = 10 if lang_ok else 0
     score += lang_score
@@ -154,10 +154,11 @@ def run_profile_analyzer(profile: dict[str, Any], completion_threshold: int = PR
         ]
 
     return {
+        "success": True,
+        "error": None,
         "completionScore": completion_score,
         "sectionScores": section_scores,
         "missingSections": missing_sections,
         "insights": insights,
         "nextActions": next_actions,
-        "success": True
     }

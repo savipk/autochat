@@ -7,7 +7,7 @@ import time
 
 from langchain.agents.middleware import wrap_tool_call
 
-logger = logging.getLogger("autochat.tools")
+logger = logging.getLogger("chatbot.tools")
 
 
 @wrap_tool_call

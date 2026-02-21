@@ -1,5 +1,5 @@
 """
-JD Composer agent factory.
+JD Generator agent factory.
 """
 
 from typing import Any
@@ -14,54 +14,54 @@ from core.middleware.summarization import create_summarization_middleware
 from core.middleware.tool_monitor import tool_monitor_middleware
 from core.skills.base import Skill, SkillRegistry
 from core.skills.loader import create_skill_loader_tool
-from agents.jd_composer.middleware import jd_composer_personalization
-from agents.jd_composer.prompts import JD_COMPOSER_SYSTEM_PROMPT
-from agents.jd_composer.tools import ALL_TOOLS
+from agents.jd_generator.middleware import jd_generator_personalization
+from agents.jd_generator.prompts import JD_GENERATOR_SYSTEM_PROMPT
+from agents.jd_generator.tools import ALL_TOOLS
 
 
-class JDComposerContext(BaseModel):
-    """Runtime context for JD Composer agent."""
+class JDGeneratorContext(BaseModel):
+    """Runtime context for JD Generator agent."""
     user_name: str = ""
     department: str = ""
     current_draft_id: str = ""
 
 
 def create_jd_agent(checkpointer=None) -> BaseAgent:
-    """Create and return a configured JD Composer agent."""
+    """Create and return a configured JD Generator agent."""
     skill_registry = SkillRegistry()
     skill_registry.register(Skill(
         name="jd_standards",
         description="Corporate job description standards covering tone, structure, and compliance guidelines.",
-        path="agents/jd_composer/skills/jd_standards.md",
+        path="agents/jd_generator/skills/jd_standards.md",
         tags=["standards", "compliance", "guidelines"],
     ))
 
     tools = ALL_TOOLS + [create_skill_loader_tool(skill_registry)]
 
     config = AgentConfig(
-        name="jd_composer",
-        description="Job Description Composer that helps hiring managers create standards-compliant JDs through an iterative, collaborative workflow.",
+        name="jd_generator",
+        description="Job Description Generator that helps hiring managers create standards-compliant JDs through an iterative, collaborative workflow.",
         llm=get_llm(),
         tools=tools,
-        system_prompt=JD_COMPOSER_SYSTEM_PROMPT,
+        system_prompt=JD_GENERATOR_SYSTEM_PROMPT,
         middleware=[
             create_summarization_middleware(),
-            jd_composer_personalization,
+            jd_generator_personalization,
             tool_monitor_middleware,
         ],
-        context_schema=JDComposerContext,
+        context_schema=JDGeneratorContext,
         checkpointer=checkpointer,
     )
     return BaseAgent(config)
 
 
-class JDComposerProtocol(AgentProtocol):
-    """A2A protocol implementation for JD Composer agent."""
+class JDGeneratorProtocol(AgentProtocol):
+    """A2A protocol implementation for JD Generator agent."""
 
     def __init__(self, agent: BaseAgent):
         card = AgentCard(
-            name="jd_composer",
-            description="Job Description Composer for hiring managers",
+            name="jd_generator",
+            description="Job Description Generator for hiring managers",
             skills=[
                 AgentSkill(name="jd_search", description="Find similar past job descriptions", tags=["search", "rag"]),
                 AgentSkill(name="jd_compose", description="Compose initial JD draft", tags=["compose", "draft"]),
@@ -91,7 +91,7 @@ class JDComposerProtocol(AgentProtocol):
             )
 
         try:
-            context = JDComposerContext(**task.metadata) if task.metadata else None
+            context = JDGeneratorContext(**task.metadata) if task.metadata else None
             result = await self._agent.invoke(
                 user_message,
                 context=context,

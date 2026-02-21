@@ -4,6 +4,8 @@ Section editor tool -- Edits a specific section of a JD draft.
 
 from langchain_core.tools import tool
 
+VALID_SECTIONS = ["summary", "responsibilities", "qualifications"]
+
 
 @tool
 def section_editor(
@@ -22,11 +24,16 @@ def run_section_editor(
     instruction: str,
 ) -> dict:
     """Actual implementation -- returns mock edited section."""
-    valid_sections = ["summary", "responsibilities", "qualifications"]
-    if section.lower() not in valid_sections:
+    if not draft_id or not isinstance(draft_id, str):
+        return {"success": False, "error": "draft_id is required and must be a non-empty string."}
+
+    if not instruction or not isinstance(instruction, str):
+        return {"success": False, "error": "instruction is required and must be a non-empty string."}
+
+    if not section or section.lower() not in VALID_SECTIONS:
         return {
             "success": False,
-            "error": f"Invalid section '{section}'. Must be one of: {valid_sections}",
+            "error": f"Invalid section '{section}'. Must be one of: {VALID_SECTIONS}",
         }
 
     mock_edits = {
@@ -58,6 +65,7 @@ def run_section_editor(
 
     return {
         "success": True,
+        "error": None,
         "draft_id": draft_id,
         "section": section.lower(),
         "instruction_applied": instruction,

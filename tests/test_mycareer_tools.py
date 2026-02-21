@@ -11,66 +11,66 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-
-@pytest.fixture
-def miro_profile():
-    path = os.path.join(os.path.dirname(__file__), "..", "data", "miro_profile.json")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+EMPTY_PROFILE = {"core": {"name": {"businessFirstName": "Test", "businessLastName": "User"}}}
 
 
 @pytest.fixture
-def empty_profile():
-    return {"core": {"name": {"businessFirstName": "Test", "businessLastName": "User"}}}
+def empty_profile_path(tmp_path, monkeypatch):
+    """Write an empty-ish profile to a temp file and point PROFILE_PATH at it."""
+    path = tmp_path / "empty_profile.json"
+    path.write_text(json.dumps(EMPTY_PROFILE))
+    import core.profile
+    monkeypatch.setattr(core.profile, "PROFILE_PATH", str(path))
+    return str(path)
 
 
 class TestProfileAnalyzer:
-    def _run(self, *args, **kwargs):
+    def _run(self, **kwargs):
         from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
-        return run_profile_analyzer(*args, **kwargs)
+        return run_profile_analyzer(**kwargs)
 
-    def test_full_profile_scores_high(self, miro_profile):
-        result = self._run(miro_profile)
+    def test_full_profile_scores_high(self):
+        result = self._run()
         assert result["success"] is True
         assert result["completionScore"] >= 80
         assert isinstance(result["sectionScores"], dict)
 
-    def test_empty_profile_scores_low(self, empty_profile):
-        result = self._run(empty_profile)
+    def test_empty_profile_scores_low(self, empty_profile_path):
+        result = self._run()
         assert result["success"] is True
         assert result["completionScore"] < 50
         assert len(result["missingSections"]) > 0
 
-    def test_missing_sections_identified(self, empty_profile):
-        result = self._run(empty_profile)
+    def test_missing_sections_identified(self, empty_profile_path):
+        result = self._run()
         assert "skills" in result["missingSections"]
         assert "experience" in result["missingSections"]
 
 
 class TestUpdateProfile:
-    def _run(self, *args, **kwargs):
+    def _run(self, **kwargs):
         from agents.mycareer.tools.update_profile import run_update_profile
-        return run_update_profile(*args, **kwargs)
+        return run_update_profile(**kwargs)
 
-    def test_update_skills_default(self, miro_profile):
-        result = self._run(miro_profile)
+    def test_update_skills_default(self):
+        result = self._run()
         assert result["success"] is True
         assert result["section"] == "skills"
         assert "A2A" in result["updated_fields"]["topSkills"]
 
-    def test_unsupported_section(self, miro_profile):
-        result = self._run(miro_profile, section="experience")
+    def test_unsupported_section(self):
+        result = self._run(section="experience")
         assert result["success"] is False
         assert "not yet supported" in result["error"]
 
 
 class TestInferSkills:
-    def _run(self, *args, **kwargs):
+    def _run(self, **kwargs):
         from agents.mycareer.tools.infer_skills import run_infer_skills
-        return run_infer_skills(*args, **kwargs)
+        return run_infer_skills(**kwargs)
 
-    def test_returns_skills(self, miro_profile):
-        result = self._run(miro_profile)
+    def test_returns_skills(self):
+        result = self._run()
         assert result["success"] is True
         assert "A2A" in result["topSkills"]
         assert "MCP" in result["topSkills"]
@@ -79,18 +79,18 @@ class TestInferSkills:
 
 
 class TestGetMatches:
-    def _run(self, *args, **kwargs):
+    def _run(self, **kwargs):
         from agents.mycareer.tools.get_matches import run_get_matches
-        return run_get_matches(*args, **kwargs)
+        return run_get_matches(**kwargs)
 
-    def test_returns_matches(self, miro_profile):
-        result = self._run(miro_profile)
+    def test_returns_matches(self):
+        result = self._run()
         assert result["success"] is True
         assert result["count"] > 0
         assert len(result["matches"]) <= 3
 
-    def test_match_has_required_fields(self, miro_profile):
-        result = self._run(miro_profile)
+    def test_match_has_required_fields(self):
+        result = self._run()
         for match in result["matches"]:
             assert "title" in match
             assert "id" in match
@@ -121,12 +121,12 @@ class TestAskJdQa:
 
 
 class TestDraftMessage:
-    def _run(self, *args, **kwargs):
+    def _run(self, **kwargs):
         from agents.mycareer.tools.draft_message import run_draft_message
-        return run_draft_message(*args, **kwargs)
+        return run_draft_message(**kwargs)
 
-    def test_draft_with_profile(self, miro_profile):
-        result = self._run(miro_profile)
+    def test_draft_with_profile(self):
+        result = self._run()
         assert result["success"] is True
         assert result["recipient_name"] == "Prasanth Jagannathan"
         assert result["message_type"] == "teams"
@@ -146,12 +146,12 @@ class TestSendMessage:
 
 
 class TestApplyForRole:
-    def _run(self, *args, **kwargs):
+    def _run(self, **kwargs):
         from agents.mycareer.tools.apply_for_role import run_apply_for_role
-        return run_apply_for_role(*args, **kwargs)
+        return run_apply_for_role(**kwargs)
 
-    def test_apply_success(self, miro_profile):
-        result = self._run("331525BR", miro_profile)
+    def test_apply_success(self):
+        result = self._run(job_id="331525BR")
         assert result["success"] is True
         assert result["job_id"] == "331525BR"
         assert result["status"] == "submitted"

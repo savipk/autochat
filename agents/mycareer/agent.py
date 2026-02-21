@@ -2,8 +2,6 @@
 MyCareer agent factory.
 """
 
-from typing import Any
-
 from pydantic import BaseModel
 
 from core.llm import get_llm
@@ -18,11 +16,13 @@ from agents.mycareer.tools import ALL_TOOLS
 
 
 class MyCareerContext(BaseModel):
-    """Runtime context for MyCareer agent."""
-    profile: dict[str, Any] = {}
+    """Runtime context for MyCareer agent.
+
+    Profile data is NOT passed here -- tools and middleware load it
+    directly from disk via ``core.profile.load_profile()``.  Only
+    computed / session-scoped values belong in this context.
+    """
     completion_score: int = 100
-    user_name: str = ""
-    current_job_context: dict[str, Any] = {}
 
 
 def create_mycareer_agent(checkpointer=None) -> BaseAgent:

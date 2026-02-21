@@ -16,8 +16,12 @@ def jd_finalize(draft_id: str) -> dict:
 
 def run_jd_finalize(draft_id: str) -> dict:
     """Actual implementation -- returns mock finalized JD."""
+    if not draft_id or not isinstance(draft_id, str):
+        return {"success": False, "error": "draft_id is required and must be a non-empty string."}
+
     return {
         "success": True,
+        "error": None,
         "draft_id": draft_id,
         "status": "finalized",
         "finalized_at": datetime.now().strftime("%Y-%m-%d %H:%M"),

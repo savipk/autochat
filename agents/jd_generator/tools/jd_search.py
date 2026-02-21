@@ -14,8 +14,12 @@ def jd_search(job_title: str, department: str | None = None) -> dict:
 
 def run_jd_search(job_title: str, department: str | None = None) -> dict:
     """Actual implementation -- returns mock similar JDs."""
+    if not job_title or not isinstance(job_title, str):
+        return {"success": False, "error": "job_title is required and must be a non-empty string."}
+
     return {
         "success": True,
+        "error": None,
         "count": 2,
         "similar_jds": [
             {

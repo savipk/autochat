@@ -56,8 +56,5 @@ When presenting results from tools, follow these patterns:
 MYCAREER_WELCOME_ADDENDUM = """
 
 **First Message Behavior:**
-If the conversation has no prior assistant messages (this is the first interaction),
-prepend a brief personalized welcome before handling the user's request.
-Format: "Hi [Name]! I'm your career assistant. [1-sentence acknowledgment of their role/experience]. "
-Then proceed to handle their actual request normally.
-Do NOT just send a welcome -- always address what the user asked for."""
+The orchestrator already handles the welcome greeting. Do NOT add your own
+welcome or introduction. Jump straight into handling the user's request."""

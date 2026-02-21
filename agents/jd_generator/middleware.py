@@ -1,5 +1,5 @@
 """
-JD Composer-specific middleware.
+JD Generator-specific middleware.
 """
 
 from langchain.agents.middleware import dynamic_prompt
@@ -11,7 +11,7 @@ def _get_context(request):
 
 
 @dynamic_prompt
-async def jd_composer_personalization(request):
+async def jd_generator_personalization(request):
     """Appends hiring manager context to the system prompt."""
     context = _get_context(request)
     if not context:

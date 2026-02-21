@@ -1,11 +1,12 @@
 """
 Draft message tool -- Mocked implementation.
-Copied AS IS from tpchat/src/tools.py.
 """
 
 from typing import Any
 
 from langchain_core.tools import tool
+
+from core.profile import load_profile
 
 
 @tool
@@ -18,18 +19,29 @@ def draft_message(
 ) -> dict:
     """Drafts a Teams message to a hiring manager or recruiter for a
     specific job posting or internal contact."""
-    raise RuntimeError("draft_message requires a profile; use run_draft_message instead")
+    return run_draft_message(
+        job_id=job_id, recipient_type=recipient_type,
+        recipient_name=recipient_name, purpose=purpose, tone=tone,
+    )
 
 
 def run_draft_message(
-    profile: dict[str, Any],
     job_id: str | None = None,
     recipient_type: str = "hiring_manager",
     recipient_name: str | None = None,
     purpose: str | None = None,
     tone: str = "formal",
 ) -> dict[str, Any]:
-    """Actual implementation."""
+    """Actual implementation -- loads profile from the configured data path."""
+    valid_tones = ("formal", "casual", "friendly")
+    if tone not in valid_tones:
+        return {"success": False, "error": f"tone must be one of {valid_tones}."}
+
+    valid_recipient_types = ("hiring_manager", "recruiter", "contact")
+    if recipient_type not in valid_recipient_types:
+        return {"success": False, "error": f"recipient_type must be one of {valid_recipient_types}."}
+
+    profile = load_profile()
     core = profile.get("core", {})
     name = core.get("name", {})
     user_first_name = name.get("businessFirstName", "")
@@ -48,6 +60,8 @@ def run_draft_message(
     )
 
     return {
+        "success": True,
+        "error": None,
         "recipient_name": recipient,
         "sender_name": user_name,
         "sender_first_name": user_first_name or user_name.split()[0],
@@ -56,7 +70,6 @@ def run_draft_message(
         "message_body": message_body,
         "message_type": "teams",
         "purpose": purpose or "express interest",
-        "success": True,
         "can_edit": True,
         "profile_link": True
     }

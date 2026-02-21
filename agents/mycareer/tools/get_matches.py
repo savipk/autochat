@@ -1,14 +1,18 @@
 """
 Get matches tool -- Functional implementation.
-Copied AS IS from tpchat/src/tools.py.
 """
 
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Any
 
 from langchain_core.tools import tool
+
+from core.profile import load_profile
+
+logger = logging.getLogger("chatbot.tools")
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "matching_jobs.json")
 DEFAULT_MATCH_TOP_K = 3
@@ -22,26 +26,40 @@ def get_matches(
 ) -> dict:
     """Finds and returns the top matching internal job postings that best fit
     the user's profile and preferences."""
-    return run_get_matches({}, filters=filters, search_text=search_text, top_k=top_k)
+    return run_get_matches(filters=filters, search_text=search_text, top_k=top_k)
 
 
 def run_get_matches(
-    profile: dict[str, Any],
     filters: dict[str, Any] | None = None,
     search_text: str | None = None,
     top_k: int = DEFAULT_MATCH_TOP_K,
 ) -> dict[str, Any]:
-    """Actual implementation."""
+    """Actual implementation -- loads profile from the configured data path."""
+    if not isinstance(top_k, int) or top_k < 1:
+        return {"success": False, "error": "top_k must be a positive integer."}
+
+    _profile = load_profile()  # noqa: F841  -- will be used once real matching is added
+
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
+        logger.warning("Job data file not found: %s", DATA_FILE)
         return {
+            "success": False,
+            "error": f"Job data file not found at {DATA_FILE}",
             "matches": [],
             "count": 0,
             "averageScore": 0,
-            "message": f"Error loading job data: {e}",
-            "success": False
+        }
+    except json.JSONDecodeError as e:
+        logger.warning("Invalid JSON in job data file: %s", e)
+        return {
+            "success": False,
+            "error": "Job data file contains invalid JSON.",
+            "matches": [],
+            "count": 0,
+            "averageScore": 0,
         }
 
     jobs = data.get("jobs", [])
@@ -70,10 +88,11 @@ def run_get_matches(
     avg_score = sum(m.get("matchScore", 0) for m in matches) / len(matches) if matches else 0
 
     return {
+        "success": True,
+        "error": None,
         "matches": matches,
         "count": len(matches),
         "averageScore": round(avg_score, 2),
         "filters_applied": filters or {},
         "search_text_used": search_text,
-        "success": True
     }

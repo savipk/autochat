@@ -13,7 +13,7 @@ from typing import Any
 
 from core.eval.expectations import evaluate_expectations, ExpectationResult
 
-logger = logging.getLogger("autochat.eval")
+logger = logging.getLogger("chatbot.eval")
 
 
 @dataclass

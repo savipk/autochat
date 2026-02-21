@@ -1,5 +1,5 @@
 """
-Environment-driven configuration for AutoChat.
+Environment-driven configuration for Chatbot.
 """
 
 import os
@@ -23,8 +23,7 @@ def get_azure_openai_endpoint() -> str:
 
 
 def get_azure_openai_deployment() -> str:
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
-    return deployment
+    return os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 
 
 def get_azure_openai_api_version() -> str:

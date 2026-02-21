@@ -1,0 +1,42 @@
+/* Logo + brand text */
+a:has(> img.logo),
+div:has(> img.logo) {
+  display: flex;
+  align-items: center;
+}
+
+a:has(> img.logo)::after,
+div:has(> img.logo)::after {
+  content: "MyCareer";
+  font-size: 1.8rem;
+  font-weight: 500;
+  color: #000000;
+  margin-left: 0.2rem;
+}
+
+img.logo {
+  height: 40px;
+  width: auto;
+}
+
+/* Subtle text used for action-button hint */
+.subtle-text {
+  font-size: 0.85em;
+  font-style: italic;
+  color: #888888;
+}
+
+/* Action button refinements */
+button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rounded-md.px-3.text-muted-foreground {
+  border: 1px solid #d1d5db;
+  color: #6b7280;
+}
+
+button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rounded-md.px-3.text-muted-foreground:hover {
+  border-color: #9ca3af;
+}
+
+button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rounded-md.px-3.text-muted-foreground
+  + button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rounded-md.px-3.text-muted-foreground {
+  margin-left: 6px;
+}

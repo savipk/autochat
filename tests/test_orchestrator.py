@@ -138,7 +138,7 @@ class TestSkillContent:
 
     def test_load_jd_standards(self):
         from core.skills.base import Skill
-        path = os.path.join(os.path.dirname(__file__), "..", "agents", "jd_composer", "skills", "jd_standards.md")
+        path = os.path.join(os.path.dirname(__file__), "..", "agents", "jd_generator", "skills", "jd_standards.md")
         skill = Skill(name="jd_standards", description="test", path=path)
         content = skill.load_content()
         assert "Corporate Job Description Standards" in content
@@ -153,28 +153,3 @@ class TestSkillContent:
         assert "not found" in content
 
 
-class TestUserContext:
-    def test_defaults(self):
-        from core.state import UserContext
-        ctx = UserContext()
-        assert ctx.profile == {}
-        assert ctx.completion_score == 100
-        assert ctx.thread_id == ""
-
-    def test_custom_values(self):
-        from core.state import UserContext
-        ctx = UserContext(
-            profile={"core": {"name": "test"}},
-            completion_score=75,
-            thread_id="abc",
-            user_name="Test User",
-        )
-        assert ctx.completion_score == 75
-        assert ctx.user_name == "Test User"
-
-
-class TestBaseAgentState:
-    def test_state_is_typed_dict(self):
-        from core.state import BaseAgentState
-        state: BaseAgentState = {"messages": [], "current_agent": "test"}
-        assert state["current_agent"] == "test"

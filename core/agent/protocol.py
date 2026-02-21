@@ -64,7 +64,7 @@ class TaskResult:
 class AgentProtocol:
     """
     A2A-compatible protocol interface.
-    Each specialist agent implements this to receive tasks from the concierge.
+    Each specialist agent implements this to receive tasks from the orchestrator.
     """
 
     def __init__(self, agent_card: AgentCard) -> None:

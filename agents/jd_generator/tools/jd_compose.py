@@ -27,11 +27,21 @@ def run_jd_compose(
     key_focus: str | None = None,
 ) -> dict:
     """Actual implementation -- returns mock JD draft."""
+    if not job_title or not isinstance(job_title, str):
+        return {"success": False, "error": "job_title is required and must be a non-empty string."}
+
+    if not department or not isinstance(department, str):
+        return {"success": False, "error": "department is required and must be a non-empty string."}
+
+    if not level or not isinstance(level, str):
+        return {"success": False, "error": "level is required and must be a non-empty string."}
+
     focus = key_focus or "building innovative AI solutions"
     team = team_size or "8-12"
 
     return {
         "success": True,
+        "error": None,
         "draft_id": "DRAFT-001",
         "title": job_title,
         "department": department,

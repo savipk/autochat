@@ -1,6 +1,5 @@
 """
 Send message tool -- Mocked implementation.
-Copied AS IS from tpchat/src/tools.py.
 """
 
 from datetime import datetime
@@ -26,6 +25,16 @@ def run_send_message(
     job_id: str | None = None,
 ) -> dict:
     """Actual implementation."""
+    if not recipient_name or not isinstance(recipient_name, str):
+        return {"success": False, "error": "recipient_name is required and must be a non-empty string."}
+
+    if not message_body or not isinstance(message_body, str):
+        return {"success": False, "error": "message_body is required and must be a non-empty string."}
+
+    valid_types = ("teams", "email")
+    if message_type not in valid_types:
+        return {"success": False, "error": f"message_type must be one of {valid_types}."}
+
     job_context = {
         "job_id": job_id or "331525BR",
         "job_title": "GenAI Lead",
@@ -36,10 +45,11 @@ def run_send_message(
 
     return {
         "success": True,
-        "recipient_name": recipient_name or "Prasanth Jagannathan",
+        "error": None,
+        "recipient_name": recipient_name,
         "message_type": message_type,
         "sent_at": datetime.now().strftime("%I:%M %p"),
         "job_context": job_context,
-        "confirmation_message": f"Sent message to {recipient_name or 'Prasanth Jagannathan'}. View in Teams.",
+        "confirmation_message": f"Sent message to {recipient_name}. View in Teams.",
         "suggest_apply": True
     }

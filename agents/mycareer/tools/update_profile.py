@@ -1,30 +1,34 @@
 """
 Update profile tool -- Mocked implementation.
-Copied AS IS from tpchat/src/tools.py.
 """
 
 from typing import Any
 
 from langchain_core.tools import tool
 
+from core.profile import load_profile
+
+VALID_SECTIONS = ["skills"]
+
 
 @tool
 def update_profile(section: str = "skills") -> dict:
     """Updates sections of the user's profile. Currently only skills can be added/edited."""
-    raise RuntimeError("update_profile requires a profile; use run_update_profile instead")
+    return run_update_profile(section=section)
 
 
 def run_update_profile(
-    profile: dict[str, Any],
     section: str = "skills",
     updates: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Actual implementation that receives profile from the agent context."""
-    if section != "skills":
+    """Actual implementation -- loads profile from the configured data path."""
+    if not section or not isinstance(section, str):
+        return {"success": False, "error": "section is required and must be a non-empty string."}
+
+    if section not in VALID_SECTIONS:
         return {
             "success": False,
-            "error": f"Update for section '{section}' is not yet supported.",
-            "supported_sections": ["skills"]
+            "error": f"Update for section '{section}' is not yet supported. Supported: {VALID_SECTIONS}",
         }
 
     if not updates:
@@ -33,10 +37,14 @@ def run_update_profile(
             "additionalSkills": ["Context Engineering", "Azure Open AI", "Azure AI Search"]
         }
 
+    profile = load_profile()
+    prev_score = profile.get("core", {}).get("completionScore", 0)
+
     return {
         "success": True,
+        "error": None,
         "section": section,
         "updated_fields": updates,
-        "previous_completion_score": profile.get("core", {}).get("completionScore", 0),
-        "estimated_new_score": min(100, profile.get("core", {}).get("completionScore", 0) + 15)
+        "previous_completion_score": prev_score,
+        "estimated_new_score": min(100, prev_score + 15)
     }

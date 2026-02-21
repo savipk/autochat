@@ -1,8 +1,15 @@
 """
 Dynamic prompt middleware for profile-based personalization.
+
+Loads the user profile directly from disk (via ``core.profile``) and
+appends user context to the system prompt.  Only ``completion_score``
+is read from the runtime context since it is a computed metric cached
+in the session.
 """
 
 from langchain.agents.middleware import dynamic_prompt
+
+from core.profile import load_profile
 
 
 def _get_context(request):
@@ -12,12 +19,8 @@ def _get_context(request):
 
 @dynamic_prompt
 async def personalization_middleware(request):
-    """
-    Appends user profile context to the system prompt at runtime.
-    The base system prompt is set on the agent; this adds profile info dynamically.
-    """
-    context = _get_context(request)
-    profile = getattr(context, "profile", {}) if context else {}
+    """Appends user profile context to the system prompt at runtime."""
+    profile = load_profile()
     if not profile:
         return request.system_prompt or ""
 
@@ -41,7 +44,8 @@ async def personalization_middleware(request):
     if skill_names:
         parts.append(f"Top Skills: {', '.join(skill_names)}")
 
-    completion_score = getattr(context, "completion_score", None)
+    context = _get_context(request)
+    completion_score = getattr(context, "completion_score", None) if context else None
     if completion_score is not None:
         parts.append(f"Profile Completion: {completion_score}%")
 
