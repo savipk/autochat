@@ -19,8 +19,9 @@ logger = logging.getLogger("chatbot")
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from agents.mycareer.agent import MyCareerContext, create_mycareer_agent
-from agents.jd_generator.agent import create_jd_agent
+from core.state import AppContext
+from core.profile import load_profile
+from agents.catalog import build_agent_catalog
 from agents.orchestrator.agent import create_orchestrator_agent
 from core.adapters.chainlit_adapter import (
     render_tool_elements,
@@ -42,10 +43,17 @@ def get_data_layer():
 # HELPERS
 # ============================================================================
 
-def _build_mycareer_context() -> MyCareerContext:
-    """Build a ``MyCareerContext`` from the current Chainlit user session."""
-    return MyCareerContext(
-        completion_score=cl.user_session.get("completion_score", 100),
+def _build_app_context() -> AppContext:
+    """Build an ``AppContext`` from the current Chainlit user session."""
+    profile = load_profile()
+    core = profile.get("core", {}) if profile else {}
+    name_info = core.get("name", {})
+    first_name = name_info.get("businessFirstName", "")
+    display_name = f"{name_info.get('businessFirstName', '')} {name_info.get('businessLastName', '')}".strip()
+    return AppContext(
+        thread_id=cl.user_session.get("thread_id", ""),
+        first_name=first_name,
+        display_name=display_name,
     )
 
 
@@ -54,9 +62,8 @@ def _build_mycareer_context() -> MyCareerContext:
 # ============================================================================
 
 checkpointer = InMemorySaver()
-mycareer_agent = create_mycareer_agent(checkpointer=checkpointer)
-jd_agent = create_jd_agent(checkpointer=checkpointer)
-orchestrator = create_orchestrator_agent(mycareer_agent, jd_agent, checkpointer=checkpointer)
+registry = build_agent_catalog(checkpointer=checkpointer)
+orchestrator = create_orchestrator_agent(registry, checkpointer=checkpointer)
 
 
 # ============================================================================
@@ -90,26 +97,22 @@ async def set_starters():
 
 @cl.on_chat_start
 async def on_chat_start():
-    """Initialize session -- compute completion score and set up tracking state."""
+    """Initialize session — store the thread_id for context building."""
     cl.user_session.set("thread_id", cl.context.session.id)
-
-    from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
-
-    analysis = run_profile_analyzer()
-    cl.user_session.set("completion_score", analysis.get("completionScore", 100))
 
 
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):
-    """Resume a previous chat session -- recompute completion score."""
+    """Resume a previous chat session."""
     cl.user_session.set("thread_id", cl.context.session.id)
 
-    from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
+    profile = load_profile()
+    core = profile.get("core", {}) if profile else {}
+    name_info = core.get("name", {})
+    first_name = name_info.get("businessFirstName", "")
 
-    analysis = run_profile_analyzer()
-    cl.user_session.set("completion_score", analysis.get("completionScore", 100))
-
-    await cl.Message(content="Welcome back! How can I help you today?").send()
+    greeting = f"Welcome back, {first_name}!" if first_name else "Welcome back!"
+    await cl.Message(content=f"{greeting} How can I help you today?").send()
 
 
 # ============================================================================
@@ -119,8 +122,7 @@ async def on_chat_resume(thread: ThreadDict):
 @cl.on_message
 async def on_message(message: cl.Message):
     """Route every message through the orchestrator agent."""
-    thread_id = cl.user_session.get("thread_id", "")
-    mycareer_ctx = _build_mycareer_context()
+    app_ctx = _build_app_context()
 
     msg = cl.Message(content="")
     await msg.send()
@@ -129,8 +131,7 @@ async def on_message(message: cl.Message):
         try:
             result = await orchestrator.invoke(
                 message.content,
-                context=mycareer_ctx,
-                thread_id=thread_id,
+                context=app_ctx,
             )
 
             messages = result.get("messages", [])

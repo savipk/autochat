@@ -38,7 +38,7 @@ def run_update_profile(
         }
 
     profile = load_profile()
-    prev_score = profile.get("core", {}).get("completionScore", 0)
+    prev_score = profile.get("completionScore", 0)
 
     return {
         "success": True,

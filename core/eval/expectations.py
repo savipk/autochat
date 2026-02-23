@@ -4,8 +4,11 @@ Expectation checkers for evaluating agent responses.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
+
+_ORCHESTRATOR_TOOL_NAMES = {"mycareer_agent", "jd_generator_agent"}
 
 
 @dataclass
@@ -15,38 +18,43 @@ class ExpectationResult:
     details: str = ""
 
 
+def _iter_tool_names(messages: list) -> list[str]:
+    """Collect all tool names from messages, unwrapping orchestrator agent tools."""
+    names: list[str] = []
+    for msg in messages:
+        if hasattr(msg, "type") and msg.type == "tool":
+            tool_name = getattr(msg, "name", "")
+            if tool_name in _ORCHESTRATOR_TOOL_NAMES:
+                try:
+                    content = msg.content
+                    parsed = json.loads(content) if isinstance(content, str) else content
+                except (json.JSONDecodeError, TypeError):
+                    parsed = {}
+                if isinstance(parsed, dict) and "tool_calls" in parsed:
+                    for inner in parsed["tool_calls"]:
+                        names.append(inner.get("name", ""))
+                    continue
+            names.append(tool_name)
+        if hasattr(msg, "tool_calls"):
+            for tc in msg.tool_calls:
+                name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+                names.append(name)
+    return names
+
+
 def check_tool_called(
     messages: list,
     expected_tool: str,
 ) -> ExpectationResult:
     """Check that a specific tool was called in the agent response."""
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "tool":
-            tool_name = getattr(msg, "name", "")
-            if tool_name == expected_tool:
-                return ExpectationResult(
-                    passed=True,
-                    check_name="tool_called",
-                    details=f"Tool '{expected_tool}' was called.",
-                )
-        if hasattr(msg, "tool_calls"):
-            for tc in msg.tool_calls:
-                name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
-                if name == expected_tool:
-                    return ExpectationResult(
-                        passed=True,
-                        check_name="tool_called",
-                        details=f"Tool '{expected_tool}' was called.",
-                    )
+    found_tools = _iter_tool_names(messages)
 
-    found_tools = []
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "tool":
-            found_tools.append(getattr(msg, "name", "unknown"))
-        if hasattr(msg, "tool_calls"):
-            for tc in msg.tool_calls:
-                name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
-                found_tools.append(name)
+    if expected_tool in found_tools:
+        return ExpectationResult(
+            passed=True,
+            check_name="tool_called",
+            details=f"Tool '{expected_tool}' was called.",
+        )
 
     return ExpectationResult(
         passed=False,
@@ -82,25 +90,47 @@ def check_response_contains(
     )
 
 
+def _iter_tool_results(messages: list) -> list[dict]:
+    """Collect all parsed tool result dicts, unwrapping orchestrator agent tools."""
+    results: list[dict] = []
+    for msg in messages:
+        if not (hasattr(msg, "type") and msg.type == "tool"):
+            continue
+        tool_name = getattr(msg, "name", "")
+        try:
+            content = msg.content
+            data = json.loads(content) if isinstance(content, str) else content
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+
+        if tool_name in _ORCHESTRATOR_TOOL_NAMES and "tool_calls" in data:
+            for inner in data["tool_calls"]:
+                inner_content = inner.get("content", {})
+                if isinstance(inner_content, str):
+                    try:
+                        inner_content = json.loads(inner_content)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                if isinstance(inner_content, dict):
+                    results.append(inner_content)
+        else:
+            results.append(data)
+    return results
+
+
 def check_success(
     messages: list,
 ) -> ExpectationResult:
     """Check that tool results indicate success."""
-    import json
-
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "tool":
-            content = getattr(msg, "content", "")
-            try:
-                data = json.loads(content) if isinstance(content, str) else content
-                if isinstance(data, dict) and data.get("success") is True:
-                    return ExpectationResult(
-                        passed=True,
-                        check_name="success",
-                        details="Tool returned success=True",
-                    )
-            except (json.JSONDecodeError, TypeError):
-                continue
+    for data in _iter_tool_results(messages):
+        if data.get("success") is True:
+            return ExpectationResult(
+                passed=True,
+                check_name="success",
+                details="Tool returned success=True",
+            )
 
     return ExpectationResult(
         passed=False,

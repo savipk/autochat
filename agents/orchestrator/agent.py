@@ -1,54 +1,86 @@
 """
 Orchestrator agent factory.
 
-Routes user messages to MyCareer or JD Generator specialist agents.
-Context (profile, completion_score, etc.) is threaded from app.py through
-the orchestrator down to each specialist via a module-level context holder.
+Routes user messages to specialist agents discovered via ``AgentRegistry``.
+Context is threaded from app.py through the orchestrator down to each
+specialist via a factory-scoped ContextVar so there is no global state.
 """
 
 from __future__ import annotations
 
 import contextvars
+import json
 import logging
 from typing import Any
 
 from langchain_core.tools import tool
 
 from core.llm import get_llm
+from core.state import AppContext, BaseContext
 from core.agent.base import BaseAgent
 from core.agent.config import AgentConfig
+from core.agent.registry import AgentRegistry
 from core.agent.protocol import AgentProtocol, AgentCard, AgentSkill, Task, TaskResult, TaskState, TaskMessage
 from core.middleware.summarization import create_summarization_middleware
+from core.middleware.tool_monitor import tool_monitor_middleware
+from agents.orchestrator.middleware import orchestrator_personalization
 from agents.orchestrator.prompts import ORCHESTRATOR_SYSTEM_PROMPT
 
 logger = logging.getLogger("chatbot.orchestrator")
 
-_current_context: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
-    "_current_context", default=None
-)
 
-
-def _create_agent_tool(agent: BaseAgent, name: str, description: str):
+def _create_agent_tool(agent: BaseAgent, name: str, description: str, context_var: contextvars.ContextVar):
     """Wrap a specialist agent as a tool for the orchestrator to call.
 
-    The tool forwards the active runtime context (set by
-    ``OrchestratorAgent.invoke``) so that specialist middleware
-    (personalization, profile warnings) receives profile data.
+    The tool reads the parent ``AppContext`` from *context_var*, builds a
+    namespaced ``thread_id``, and constructs the correct sub-agent context
+    via ``agent.config.context_factory`` (falling back to ``BaseContext``).
     """
 
     @tool(name, description=description)
     async def agent_tool(message: str) -> str:
-        ctx = _current_context.get()
+        app_ctx = context_var.get()
+        parent_thread_id = getattr(app_ctx, "thread_id", "") if app_ctx else ""
+        namespaced_id = f"{parent_thread_id}:{name}" if parent_thread_id else ""
+
+        if agent.config.context_factory:
+            sub_ctx = agent.config.context_factory(namespaced_id)
+        else:
+            sub_ctx = BaseContext(thread_id=namespaced_id)
+
         try:
-            result = await agent.invoke(message, context=ctx)
+            result = await agent.invoke(message, context=sub_ctx)
         except Exception as e:
             logger.exception("Sub-agent '%s' raised an error", name)
-            return f"Sorry, the {name} agent encountered an error: {type(e).__name__}. Please try again."
+            return json.dumps({
+                "response": f"Sorry, the {name} agent encountered an error: {type(e).__name__}. Please try again.",
+                "tool_calls": [],
+            })
+
         messages = result.get("messages", [])
+
+        inner_tool_calls = []
+        for msg in messages:
+            if hasattr(msg, "type") and msg.type == "tool":
+                raw = msg.content
+                try:
+                    parsed = json.loads(raw) if isinstance(raw, str) else raw
+                except (json.JSONDecodeError, TypeError):
+                    parsed = raw
+                inner_tool_calls.append({
+                    "name": getattr(msg, "name", ""),
+                    "content": parsed,
+                })
+
+        response = ""
         if messages:
             last = messages[-1]
-            return getattr(last, "content", str(last))
-        return "No response from agent."
+            response = getattr(last, "content", str(last))
+
+        return json.dumps({
+            "response": response,
+            "tool_calls": inner_tool_calls,
+        })
 
     return agent_tool
 
@@ -58,55 +90,60 @@ class OrchestratorAgent(BaseAgent):
     so that specialist-agent tool wrappers can pick it up.
     """
 
-    async def invoke(self, message: str, *, context: Any = None, thread_id: str = "") -> dict:
-        token = _current_context.set(context)
+    def __init__(self, config: AgentConfig, context_var: contextvars.ContextVar) -> None:
+        self._context_var = context_var
+        super().__init__(config)
+
+    async def invoke(self, message: str, *, context: Any = None) -> dict:
+        token = self._context_var.set(context)
         try:
-            return await super().invoke(message, context=context, thread_id=thread_id)
+            return await super().invoke(message, context=context)
         finally:
-            _current_context.reset(token)
+            self._context_var.reset(token)
 
 
 def create_orchestrator_agent(
-    mycareer_agent: BaseAgent,
-    jd_generator_agent: BaseAgent,
+    registry: AgentRegistry,
     checkpointer=None,
 ) -> OrchestratorAgent:
-    """Create the orchestrator that routes to specialist agents."""
-    mycareer_tool = _create_agent_tool(
-        mycareer_agent,
-        name="mycareer_agent",
-        description=(
-            "Route to the MyCareer agent for career-related requests: "
-            "profile analysis, skill suggestions, profile updates, job matching, "
-            "job posting Q&A, drafting/sending messages, and applying for roles."
-        ),
+    """Create the orchestrator that routes to specialist agents in *registry*."""
+    context_var: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+        "_orchestrator_ctx", default=None
     )
-    jd_generator_tool = _create_agent_tool(
-        jd_generator_agent,
-        name="jd_generator_agent",
-        description=(
-            "Route to the JD Generator agent for job description requests: "
-            "creating new JDs, searching similar past JDs, editing JD sections, "
-            "and finalizing JDs for posting."
-        ),
-    )
+
+    tools = []
+    for agent_name in registry.list_agents():
+        agent = registry.get(agent_name)
+        tools.append(
+            _create_agent_tool(
+                agent,
+                name=agent_name,
+                description=agent.config.description,
+                context_var=context_var,
+            )
+        )
 
     config = AgentConfig(
         name="orchestrator",
         description="Chat orchestrator that routes users to the right specialist agent.",
         llm=get_llm(),
-        tools=[mycareer_tool, jd_generator_tool],
+        tools=tools,
         system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
-        middleware=[create_summarization_middleware()],
+        middleware=[
+            create_summarization_middleware(),
+            orchestrator_personalization,
+            tool_monitor_middleware,
+        ],
+        context_schema=AppContext,
         checkpointer=checkpointer,
     )
-    return OrchestratorAgent(config)
+    return OrchestratorAgent(config, context_var)
 
 
 class OrchestratorProtocol(AgentProtocol):
     """A2A protocol for the orchestrator."""
 
-    def __init__(self, agent: BaseAgent):
+    def __init__(self, agent: OrchestratorAgent):
         card = AgentCard(
             name="orchestrator",
             description="Chat orchestrator -- routes to MyCareer or JD Generator agents",
@@ -138,10 +175,9 @@ class OrchestratorProtocol(AgentProtocol):
             )
 
         try:
-            result = await self._agent.invoke(
-                user_message,
-                thread_id=task.metadata.get("thread_id", task.id),
-            )
+            thread_id_val = task.metadata.get("thread_id", task.id) if task.metadata else task.id
+            context = AppContext(thread_id=thread_id_val)
+            result = await self._agent.invoke(user_message, context=context)
             response_messages = result.get("messages", [])
             last_msg = response_messages[-1] if response_messages else None
             content = getattr(last_msg, "content", str(last_msg)) if last_msg else "No response"

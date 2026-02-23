@@ -43,8 +43,8 @@ class BaseAgent:
         message: str,
         *,
         context: Any = None,
-        thread_id: str = "",
     ) -> dict:
+        thread_id = getattr(context, "thread_id", "")
         config: dict[str, Any] = {}
         if thread_id:
             config["configurable"] = {"thread_id": thread_id}
@@ -61,8 +61,8 @@ class BaseAgent:
         message: str,
         *,
         context: Any = None,
-        thread_id: str = "",
     ) -> AsyncIterator[dict]:
+        thread_id = getattr(context, "thread_id", "")
         config: dict[str, Any] = {}
         if thread_id:
             config["configurable"] = {"thread_id": thread_id}

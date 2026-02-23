@@ -2,11 +2,8 @@
 JD Generator agent factory.
 """
 
-from typing import Any
-
-from pydantic import BaseModel
-
 from core.llm import get_llm
+from core.state import BaseContext
 from core.agent.base import BaseAgent
 from core.agent.config import AgentConfig
 from core.agent.protocol import AgentProtocol, AgentCard, AgentSkill, Task, TaskResult, TaskState, TaskMessage
@@ -19,11 +16,8 @@ from agents.jd_generator.prompts import JD_GENERATOR_SYSTEM_PROMPT
 from agents.jd_generator.tools import ALL_TOOLS
 
 
-class JDGeneratorContext(BaseModel):
+class JDGeneratorContext(BaseContext):
     """Runtime context for JD Generator agent."""
-    user_name: str = ""
-    department: str = ""
-    current_draft_id: str = ""
 
 
 def create_jd_agent(checkpointer=None) -> BaseAgent:
@@ -51,6 +45,7 @@ def create_jd_agent(checkpointer=None) -> BaseAgent:
         ],
         context_schema=JDGeneratorContext,
         checkpointer=checkpointer,
+        context_factory=lambda thread_id: JDGeneratorContext(thread_id=thread_id),
     )
     return BaseAgent(config)
 
@@ -91,12 +86,11 @@ class JDGeneratorProtocol(AgentProtocol):
             )
 
         try:
-            context = JDGeneratorContext(**task.metadata) if task.metadata else None
-            result = await self._agent.invoke(
-                user_message,
-                context=context,
-                thread_id=task.metadata.get("thread_id", task.id),
-            )
+            metadata = dict(task.metadata) if task.metadata else {}
+            if "thread_id" not in metadata:
+                metadata["thread_id"] = task.id
+            context = JDGeneratorContext(**metadata)
+            result = await self._agent.invoke(user_message, context=context)
             response_messages = result.get("messages", [])
             last_msg = response_messages[-1] if response_messages else None
             content = getattr(last_msg, "content", str(last_msg)) if last_msg else "No response"

@@ -28,6 +28,15 @@ class TestAgentConfig:
         assert config.middleware == []
         assert config.state_schema is None
         assert config.context_schema is None
+        assert config.context_factory is None
+
+    def test_config_context_factory(self):
+        from core.agent.config import AgentConfig
+        from core.state import BaseContext
+        factory = lambda tid: BaseContext(thread_id=tid)
+        config = AgentConfig(name="test", description="test", llm=None, context_factory=factory)
+        ctx = config.context_factory("abc")
+        assert ctx.thread_id == "abc"
 
 
 class TestAgentRegistry:
@@ -126,6 +135,51 @@ class TestSkillRegistry:
         assert registry.get("nonexistent") is None
 
 
+class TestBaseContext:
+    def test_defaults(self):
+        from core.state import BaseContext
+        ctx = BaseContext()
+        assert ctx.thread_id == ""
+
+    def test_custom_values(self):
+        from core.state import BaseContext
+        ctx = BaseContext(thread_id="t-123")
+        assert ctx.thread_id == "t-123"
+
+    def test_app_context_defaults(self):
+        from core.state import AppContext
+        ctx = AppContext()
+        assert ctx.thread_id == ""
+        assert ctx.first_name == ""
+        assert ctx.display_name == ""
+
+    def test_app_context_inherits_base(self):
+        from core.state import BaseContext, AppContext
+        assert issubclass(AppContext, BaseContext)
+
+    def test_app_context_fields(self):
+        from core.state import AppContext
+        ctx = AppContext(thread_id="s-1", first_name="Alice", display_name="Alice Smith")
+        assert ctx.thread_id == "s-1"
+        assert ctx.first_name == "Alice"
+        assert ctx.display_name == "Alice Smith"
+
+    def test_mycareer_inherits(self):
+        from core.state import BaseContext
+        from agents.mycareer.agent import MyCareerContext
+        assert issubclass(MyCareerContext, BaseContext)
+        ctx = MyCareerContext(thread_id="t-1", completion_score=72)
+        assert ctx.thread_id == "t-1"
+        assert ctx.completion_score == 72
+
+    def test_jd_generator_inherits(self):
+        from core.state import BaseContext
+        from agents.jd_generator.agent import JDGeneratorContext
+        assert issubclass(JDGeneratorContext, BaseContext)
+        ctx = JDGeneratorContext(thread_id="t-2")
+        assert ctx.thread_id == "t-2"
+
+
 class TestSkillContent:
     def test_load_content_from_file(self, tmp_path):
         from core.skills.base import Skill
@@ -151,5 +205,3 @@ class TestSkillContent:
         skill = Skill(name="test", description="test", path="/nonexistent/path.md")
         content = skill.load_content()
         assert "not found" in content
-
-

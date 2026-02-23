@@ -3,7 +3,7 @@ Agent configuration dataclass.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass
@@ -18,3 +18,4 @@ class AgentConfig:
     state_schema: type | None = None
     context_schema: type | None = None
     checkpointer: Any = None
+    context_factory: Callable[[str], Any] | None = None

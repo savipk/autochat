@@ -31,18 +31,3 @@ def load_profile(path: str | None = None) -> dict:
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("Failed to load profile from %s: %s", profile_path, e)
         return {}
-
-
-def user_name_from_profile(profile: dict | None = None) -> str:
-    """Extract a display name from a profile dict.
-
-    If *profile* is ``None``, loads from the default path.
-    """
-    if profile is None:
-        profile = load_profile()
-    core = profile.get("core", {})
-    name_info = core.get("name", {})
-    return (
-        f"{name_info.get('businessFirstName', '')} "
-        f"{name_info.get('businessLastName', '')}"
-    ).strip()

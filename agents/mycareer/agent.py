@@ -2,26 +2,20 @@
 MyCareer agent factory.
 """
 
-from pydantic import BaseModel
-
 from core.llm import get_llm
+from core.state import BaseContext
 from core.agent.base import BaseAgent
 from core.agent.config import AgentConfig
 from core.agent.protocol import AgentProtocol, AgentCard, AgentSkill, Task, TaskResult, TaskState, TaskMessage
 from core.middleware.summarization import create_summarization_middleware
 from core.middleware.tool_monitor import tool_monitor_middleware
-from agents.mycareer.middleware import mycareer_personalization, profile_warning_middleware
+from agents.mycareer.middleware import first_touch_profile_middleware, mycareer_personalization, profile_warning_middleware
 from agents.mycareer.prompts import MYCAREER_SYSTEM_PROMPT, MYCAREER_WELCOME_ADDENDUM
 from agents.mycareer.tools import ALL_TOOLS
 
 
-class MyCareerContext(BaseModel):
-    """Runtime context for MyCareer agent.
-
-    Profile data is NOT passed here -- tools and middleware load it
-    directly from disk via ``core.profile.load_profile()``.  Only
-    computed / session-scoped values belong in this context.
-    """
+class MyCareerContext(BaseContext):
+    """Runtime context for MyCareer agent."""
     completion_score: int = 100
 
 
@@ -35,12 +29,14 @@ def create_mycareer_agent(checkpointer=None) -> BaseAgent:
         system_prompt=MYCAREER_SYSTEM_PROMPT + MYCAREER_WELCOME_ADDENDUM,
         middleware=[
             create_summarization_middleware(),
+            first_touch_profile_middleware,
             mycareer_personalization,
             profile_warning_middleware,
             tool_monitor_middleware,
         ],
         context_schema=MyCareerContext,
         checkpointer=checkpointer,
+        context_factory=lambda thread_id: MyCareerContext(thread_id=thread_id),
     )
     return BaseAgent(config)
 
@@ -82,12 +78,11 @@ class MyCareerProtocol(AgentProtocol):
             )
 
         try:
-            context = MyCareerContext(**task.metadata) if task.metadata else None
-            result = await self._agent.invoke(
-                user_message,
-                context=context,
-                thread_id=task.metadata.get("thread_id", task.id),
-            )
+            metadata = dict(task.metadata) if task.metadata else {}
+            if "thread_id" not in metadata:
+                metadata["thread_id"] = task.id
+            context = MyCareerContext(**metadata)
+            result = await self._agent.invoke(user_message, context=context)
             response_messages = result.get("messages", [])
             last_msg = response_messages[-1] if response_messages else None
             content = getattr(last_msg, "content", str(last_msg)) if last_msg else "No response"

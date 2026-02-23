@@ -3,7 +3,6 @@ Chainlit adapter -- bridges the Chainlit UI with the orchestrator agent.
 
 Handles:
 - Rendering Chainlit elements (JobCard, DraftMessage, ProfileScore) from tool results
-- Managing TaskList for JD Generator workflow
 
 Tool response rendering follows a prompt-driven pattern: the LLM system prompt
 instructs the model not to repeat data that is shown via custom elements (e.g.
@@ -197,41 +196,45 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
     return elements
 
 
+ORCHESTRATOR_TOOL_NAMES = {"mycareer_agent", "jd_generator_agent"}
+
+
 def extract_tool_calls_from_messages(messages: list) -> list[tuple[str, dict]]:
-    """Extract tool name and result pairs from agent response messages."""
-    tool_calls = []
+    """Extract tool name and result pairs from agent response messages.
+
+    For orchestrator-level agent tools (``mycareer_agent``,
+    ``jd_generator_agent``), the returned JSON contains a ``tool_calls``
+    array with the specialist's inner tool results.  These are unwrapped so
+    that ``render_tool_elements`` receives the inner tool names it expects
+    (e.g. ``get_matches``, ``profile_analyzer``).
+    """
+    tool_calls: list[tuple[str, dict]] = []
     for msg in messages:
-        if hasattr(msg, "type") and msg.type == "tool":
-            tool_name = getattr(msg, "name", "")
-            try:
-                content = msg.content
-                if isinstance(content, str):
-                    result = json.loads(content)
-                else:
-                    result = content
-            except (json.JSONDecodeError, TypeError):
-                result = {"raw": str(msg.content)}
+        if not (hasattr(msg, "type") and msg.type == "tool"):
+            continue
+
+        tool_name = getattr(msg, "name", "")
+        try:
+            content = msg.content
+            result = json.loads(content) if isinstance(content, str) else content
+        except (json.JSONDecodeError, TypeError):
+            result = {"raw": str(msg.content)}
+
+        if (
+            tool_name in ORCHESTRATOR_TOOL_NAMES
+            and isinstance(result, dict)
+            and "tool_calls" in result
+        ):
+            for inner in result["tool_calls"]:
+                inner_name = inner.get("name", "")
+                inner_content = inner.get("content", {})
+                if isinstance(inner_content, str):
+                    try:
+                        inner_content = json.loads(inner_content)
+                    except (json.JSONDecodeError, TypeError):
+                        inner_content = {"raw": inner_content}
+                tool_calls.append((inner_name, inner_content))
+        else:
             tool_calls.append((tool_name, result))
+
     return tool_calls
-
-
-async def create_jd_task_list(status: str = "Starting...") -> cl.TaskList:
-    """Create a TaskList for JD Generator workflow."""
-    task_list = cl.TaskList()
-    task_list.status = status
-
-    task1 = cl.Task(title="Gather job requirements", status=cl.TaskStatus.READY)
-    task2 = cl.Task(title="Search similar JDs", status=cl.TaskStatus.READY)
-    task3 = cl.Task(title="Load JD standards", status=cl.TaskStatus.READY)
-    task4 = cl.Task(title="Compose initial draft", status=cl.TaskStatus.READY)
-    task5 = cl.Task(title="Review and iterate", status=cl.TaskStatus.READY)
-    task6 = cl.Task(title="Finalize JD", status=cl.TaskStatus.READY)
-
-    await task_list.add_task(task1)
-    await task_list.add_task(task2)
-    await task_list.add_task(task3)
-    await task_list.add_task(task4)
-    await task_list.add_task(task5)
-    await task_list.add_task(task6)
-
-    return task_list
