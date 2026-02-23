@@ -29,16 +29,16 @@ from agents.orchestrator.prompts import ORCHESTRATOR_SYSTEM_PROMPT
 logger = logging.getLogger("chatbot.orchestrator")
 
 
-def _create_agent_tool(agent: BaseAgent, name: str, description: str, context_var: contextvars.ContextVar):
-    """Wrap a specialist agent as a tool for the orchestrator to call.
+def _create_sub_agent(agent: BaseAgent, name: str, description: str, context_var: contextvars.ContextVar):
+    """Wrap a specialist agent as a sub-agent for the orchestrator to call.
 
-    The tool reads the parent ``AppContext`` from *context_var*, builds a
+    Reads the parent ``AppContext`` from *context_var*, builds a
     namespaced ``thread_id``, and constructs the correct sub-agent context
     via ``agent.config.context_factory`` (falling back to ``BaseContext``).
     """
 
     @tool(name, description=description)
-    async def agent_tool(message: str) -> str:
+    async def sub_agent(message: str) -> str:
         app_ctx = context_var.get()
         parent_thread_id = getattr(app_ctx, "thread_id", "") if app_ctx else ""
         namespaced_id = f"{parent_thread_id}:{name}" if parent_thread_id else ""
@@ -82,12 +82,12 @@ def _create_agent_tool(agent: BaseAgent, name: str, description: str, context_va
             "tool_calls": inner_tool_calls,
         })
 
-    return agent_tool
+    return sub_agent
 
 
 class OrchestratorAgent(BaseAgent):
     """Orchestrator that stashes runtime context before invoking the graph
-    so that specialist-agent tool wrappers can pick it up.
+    so that sub-agent wrappers can pick it up.
     """
 
     def __init__(self, config: AgentConfig, context_var: contextvars.ContextVar) -> None:
@@ -111,11 +111,11 @@ def create_orchestrator_agent(
         "_orchestrator_ctx", default=None
     )
 
-    tools = []
+    sub_agents = []
     for agent_name in registry.list_agents():
         agent = registry.get(agent_name)
-        tools.append(
-            _create_agent_tool(
+        sub_agents.append(
+            _create_sub_agent(
                 agent,
                 name=agent_name,
                 description=agent.config.description,
@@ -127,7 +127,7 @@ def create_orchestrator_agent(
         name="orchestrator",
         description="Chat orchestrator that routes users to the right specialist agent.",
         llm=get_llm(),
-        tools=tools,
+        tools=sub_agents,
         system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
         middleware=[
             create_summarization_middleware(),

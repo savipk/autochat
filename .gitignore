@@ -215,4 +215,4 @@ data_dump/
 # .chainlit/
 # chainlit.md
 .vscode/
-CLAUDE.md
+*.md

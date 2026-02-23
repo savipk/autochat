@@ -2,6 +2,7 @@
 Chainlit entry point
 """
 
+import json
 import logging
 import os
 import sys
@@ -124,8 +125,8 @@ async def on_message(message: cl.Message):
     """Route every message through the orchestrator agent."""
     app_ctx = _build_app_context()
 
-    msg = cl.Message(content="")
-    await msg.send()
+    response_text = ""
+    all_elements: list = []
 
     async with cl.Step(name="Processing your request", type="tool") as step:
         try:
@@ -136,7 +137,6 @@ async def on_message(message: cl.Message):
 
             messages = result.get("messages", [])
 
-            all_elements: list = []
             tool_calls = extract_tool_calls_from_messages(messages)
 
             for tool_name, tool_result in tool_calls:
@@ -144,11 +144,10 @@ async def on_message(message: cl.Message):
                 all_elements.extend(elements)
 
             last_msg = messages[-1] if messages else None
-            response_text = ""
             if last_msg:
                 response_text = getattr(last_msg, "content", str(last_msg))
 
-            step.output = _build_debug_output(tool_calls, response_text)
+            step.output = _build_debug_output(messages)
 
         except Exception as e:
             logger.exception("Error processing message")
@@ -158,17 +157,56 @@ async def on_message(message: cl.Message):
             )
             all_elements = []
 
-    msg.content = response_text
+    msg = cl.Message(content=response_text)
     if all_elements:
         msg.elements = all_elements
-    await msg.update()
+    await msg.send()
 
 
-def _build_debug_output(tool_calls: list[tuple[str, dict]], response_text: str) -> str:
+def _build_debug_output(messages: list) -> str:
+    # Build a map from tool_call_id -> args so we can look up the input message
+    tool_call_args: dict[str, dict] = {}
+    for msg in messages:
+        if not hasattr(msg, "type") or msg.type != "ai":
+            continue
+        for tc in getattr(msg, "tool_calls", []):
+            tc_id = tc.get("id", "")
+            if tc_id:
+                tool_call_args[tc_id] = tc.get("args", {})
+
     parts = []
-    if tool_calls:
-        parts.append("Tools executed: " + ", ".join(t[0] for t in tool_calls))
-    if response_text:
-        snippet = response_text[:200]
-        parts.append(f"Response preview: {snippet}")
-    return "\n".join(parts) if parts else "No tools executed."
+    for msg in messages:
+        if not (hasattr(msg, "type") and msg.type == "tool"):
+            continue
+
+        tool_name = getattr(msg, "name", "")
+        tool_call_id = getattr(msg, "tool_call_id", "")
+        args = tool_call_args.get(tool_call_id, {})
+        input_message = args.get("message", "")
+
+        try:
+            content = msg.content
+            result = json.loads(content) if isinstance(content, str) else content
+        except (json.JSONDecodeError, TypeError):
+            result = {}
+
+        if not isinstance(result, dict):
+            result = {}
+
+        header = f"▶ {tool_name}"
+        if input_message:
+            header += f'  ·  "{input_message}"'
+        lines = [header]
+
+        for inner in result.get("tool_calls", []):
+            inner_name = inner.get("name", "")
+            if inner_name:
+                lines.append(f"  → {inner_name}")
+
+        response = result.get("response", "")
+        if response:
+            lines.append(f"◀ {response}")
+
+        parts.append("\n".join(lines))
+
+    return "\n\n".join(parts) if parts else "No sub-agents called."

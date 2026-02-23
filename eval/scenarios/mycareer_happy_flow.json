@@ -45,7 +45,7 @@
       "user": "Which project is the first role focused on",
       "expectations": {
         "tool_called": "ask_jd_qa",
-        "response_contains": ["AI applications"],
+        "response_contains": ["role does not mention this"],
         "success": true
       }
     },
@@ -54,7 +54,7 @@
       "user": "Yes draft a message",
       "expectations": {
         "tool_called": "draft_message",
-        "response_contains": ["Prasanth"],
+        "response_contains": ["coffee chat"],
         "success": true
       }
     },

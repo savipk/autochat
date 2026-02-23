@@ -196,7 +196,7 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
     return elements
 
 
-ORCHESTRATOR_TOOL_NAMES = {"mycareer_agent", "jd_generator_agent"}
+ORCHESTRATOR_TOOL_NAMES = {"mycareer", "jd_generator"}
 
 
 def extract_tool_calls_from_messages(messages: list) -> list[tuple[str, dict]]:
