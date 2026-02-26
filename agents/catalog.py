@@ -1,5 +1,5 @@
 """
-Agent catalog — the single place that wires sub-agents into the registry.
+Agent catalog — the single place that wires worker agents into the registry.
 
 To add a new agent:
   1. Create agents/<name>/agent.py with a ``create_<name>_agent()`` factory.

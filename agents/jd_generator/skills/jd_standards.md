@@ -45,7 +45,7 @@ Every job description must contain exactly three sections:
 
 | Level | Team Size | Strategic Scope | Typical Experience |
 |-------|-----------|-----------------|-------------------|
-| Vice President | 3-8 | Team/project level | 6-10 years |
+| Director | 3-8 | Team/project level | 6-10 years |
 | Executive Director | 8-15 | Division/program level | 10-15 years |
 | Managing Director | 15+ | Firm-wide/cross-division | 15+ years |
 

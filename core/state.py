@@ -21,7 +21,7 @@ class AppContext(BaseContext):
     """Session-level context for the orchestrator.
 
     Carries only the minimum state needed for personalized greetings —
-    the orchestrator should not hold sub-agent-specific concerns.
+    the orchestrator should not hold worker-agent-specific concerns.
     """
     first_name: str = ""
     display_name: str = ""

@@ -137,17 +137,24 @@ async def on_message(message: cl.Message):
 
             messages = result.get("messages", [])
 
-            tool_calls = extract_tool_calls_from_messages(messages)
+            # Slice to only the current turn (from the last HumanMessage onward)
+            turn_start = 0
+            for i, msg in enumerate(messages):
+                if hasattr(msg, "type") and msg.type == "human":
+                    turn_start = i
+            current_turn_messages = messages[turn_start:]
+
+            tool_calls = extract_tool_calls_from_messages(current_turn_messages)
 
             for tool_name, tool_result in tool_calls:
                 elements = await render_tool_elements(tool_name, tool_result)
                 all_elements.extend(elements)
 
-            last_msg = messages[-1] if messages else None
+            last_msg = current_turn_messages[-1] if current_turn_messages else None
             if last_msg:
                 response_text = getattr(last_msg, "content", str(last_msg))
 
-            step.output = _build_debug_output(messages)
+            step.output = _build_debug_output(current_turn_messages)
 
         except Exception as e:
             logger.exception("Error processing message")
@@ -209,4 +216,4 @@ def _build_debug_output(messages: list) -> str:
 
         parts.append("\n".join(lines))
 
-    return "\n\n".join(parts) if parts else "No sub-agents called."
+    return "\n\n".join(parts) if parts else "No worker agents called."
