@@ -59,8 +59,16 @@ def _create_worker_agent(agent: BaseAgent, name: str, description: str, context_
 
         messages = result.get("messages", [])
 
+        # Slice to current turn only — the checkpointer loads the full
+        # history so we must skip tool messages from prior turns.
+        turn_start = 0
+        for i, msg in enumerate(messages):
+            if hasattr(msg, "type") and msg.type == "human":
+                turn_start = i
+        current_turn_messages = messages[turn_start:]
+
         inner_tool_calls = []
-        for msg in messages:
+        for msg in current_turn_messages:
             if hasattr(msg, "type") and msg.type == "tool":
                 raw = msg.content
                 try:
