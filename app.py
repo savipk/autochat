@@ -236,89 +236,143 @@ def _summarize_tool_content(content) -> str:
     return summary
 
 
-def _build_debug_output(messages: list) -> str:
-    # Build a map from tool_call_id -> tool_call so we can look up args
-    tool_call_map: dict[str, dict] = {}
-    for msg in messages:
-        if not hasattr(msg, "type") or msg.type != "ai":
-            continue
-        for tc in getattr(msg, "tool_calls", []):
-            tc_id = tc.get("id", "")
-            if tc_id:
-                tool_call_map[tc_id] = tc
+# def _build_debug_output_old(messages: list) -> str:
+#     # Build a map from tool_call_id -> tool_call so we can look up args
+#     tool_call_map: dict[str, dict] = {}
+#     for msg in messages:
+#         if not hasattr(msg, "type") or msg.type != "ai":
+#             continue
+#         for tc in getattr(msg, "tool_calls", []):
+#             tc_id = tc.get("id", "")
+#             if tc_id:
+#                 tool_call_map[tc_id] = tc
+#
+#     parts = []
+#
+#     # 1. User → Orchestrator
+#     for msg in messages:
+#         if hasattr(msg, "type") and msg.type == "human":
+#             user_text = msg.content if isinstance(msg.content, str) else str(msg.content)
+#             parts.append(f"━━━ User → Orchestrator ━━━\n\"{user_text}\"")
+#             break
+#
+#     # 2. Each AIMessage with tool_calls = orchestrator delegating to a worker agent
+#     tool_messages: dict[str, object] = {}
+#     for msg in messages:
+#         if hasattr(msg, "type") and msg.type == "tool":
+#             tc_id = getattr(msg, "tool_call_id", "")
+#             if tc_id:
+#                 tool_messages[tc_id] = msg
+#
+#     for msg in messages:
+#         if not (hasattr(msg, "type") and msg.type == "ai"):
+#             continue
+#         tool_calls = getattr(msg, "tool_calls", [])
+#         if not tool_calls:
+#             continue
+#
+#         for tc in tool_calls:
+#             agent_name = tc.get("name", "worker")
+#             args = tc.get("args", {})
+#             delegated_message = args.get("message", "")
+#             tc_id = tc.get("id", "")
+#
+#             # Orchestrator → Worker header
+#             section_lines = [f"━━━ Orchestrator → {agent_name} (worker agent) ━━━"]
+#             if delegated_message:
+#                 section_lines.append(f'"{delegated_message}"')
+#
+#             # Find the corresponding ToolMessage
+#             tool_msg = tool_messages.get(tc_id)
+#             result = {}
+#             if tool_msg is not None:
+#                 try:
+#                     raw = tool_msg.content
+#                     result = json.loads(raw) if isinstance(raw, str) else raw
+#                 except (json.JSONDecodeError, TypeError):
+#                     result = {}
+#                 if not isinstance(result, dict):
+#                     result = {}
+#
+#             # Inner tool calls made by the worker agent
+#             for inner in result.get("tool_calls", []):
+#                 inner_name = inner.get("name", "")
+#                 inner_content = inner.get("content", "")
+#                 if inner_name:
+#                     section_lines.append(f"  ▶ {agent_name} → {inner_name}")
+#                     summary = _summarize_tool_content(inner_content)
+#                     section_lines.append(f"  ◀ {inner_name} → {agent_name}: {summary}")
+#
+#             parts.append("\n".join(section_lines))
+#
+#             # Worker → Orchestrator
+#             response = result.get("response", "")
+#             if response:
+#                 resp_preview = response[:200] + ("…" if len(response) > 200 else "")
+#                 parts.append(f"━━━ {agent_name} → Orchestrator ━━━\n\"{resp_preview}\"")
+#
+#     # 3. Last AIMessage without tool_calls = final orchestrator reply to user
+#     final_ai = None
+#     for msg in messages:
+#         if hasattr(msg, "type") and msg.type == "ai" and not getattr(msg, "tool_calls", []):
+#             final_ai = msg
+#     if final_ai is not None:
+#         final_text = final_ai.content if isinstance(final_ai.content, str) else str(final_ai.content)
+#         preview = final_text[:200] + ("…" if len(final_text) > 200 else "")
+#         parts.append(f"━━━ Orchestrator → User ━━━\n\"{preview}\"")
+#
+#     return "\n\n".join(parts) if parts else "No worker agents called."
 
+
+def _build_debug_output(messages: list) -> str:
+    """Dump every message in the current turn with its full, untruncated data."""
     parts = []
 
-    # 1. User → Orchestrator
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "human":
-            user_text = msg.content if isinstance(msg.content, str) else str(msg.content)
-            parts.append(f"━━━ User → Orchestrator ━━━\n\"{user_text}\"")
-            break
+    for idx, msg in enumerate(messages):
+        msg_type = getattr(msg, "type", type(msg).__name__)
+        header = f"━━━ Message {idx} | type={msg_type} ━━━"
 
-    # 2. Each AIMessage with tool_calls = orchestrator delegating to a worker agent
-    tool_messages: dict[str, object] = {}
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "tool":
-            tc_id = getattr(msg, "tool_call_id", "")
-            if tc_id:
-                tool_messages[tc_id] = msg
+        body_lines = []
 
-    for msg in messages:
-        if not (hasattr(msg, "type") and msg.type == "ai"):
-            continue
-        tool_calls = getattr(msg, "tool_calls", [])
-        if not tool_calls:
-            continue
-
-        for tc in tool_calls:
-            agent_name = tc.get("name", "worker")
-            args = tc.get("args", {})
-            delegated_message = args.get("message", "")
-            tc_id = tc.get("id", "")
-
-            # Orchestrator → Worker header
-            section_lines = [f"━━━ Orchestrator → {agent_name} (worker agent) ━━━"]
-            if delegated_message:
-                section_lines.append(f'"{delegated_message}"')
-
-            # Find the corresponding ToolMessage
-            tool_msg = tool_messages.get(tc_id)
-            result = {}
-            if tool_msg is not None:
+        # Full content (no truncation)
+        content = getattr(msg, "content", None)
+        if content is not None:
+            if isinstance(content, str):
                 try:
-                    raw = tool_msg.content
-                    result = json.loads(raw) if isinstance(raw, str) else raw
+                    parsed = json.loads(content)
+                    body_lines.append(f"content:\n{json.dumps(parsed, indent=2, default=str)}")
                 except (json.JSONDecodeError, TypeError):
-                    result = {}
-                if not isinstance(result, dict):
-                    result = {}
+                    body_lines.append(f"content:\n{content}")
+            else:
+                body_lines.append(f"content:\n{json.dumps(content, indent=2, default=str)}")
 
-            # Inner tool calls made by the worker agent
-            for inner in result.get("tool_calls", []):
-                inner_name = inner.get("name", "")
-                inner_content = inner.get("content", "")
-                if inner_name:
-                    section_lines.append(f"  ▶ {agent_name} → {inner_name}")
-                    summary = _summarize_tool_content(inner_content)
-                    section_lines.append(f"  ◀ {inner_name} → {agent_name}: {summary}")
+        # Tool calls on AI messages (full args, no summarisation)
+        tool_calls = getattr(msg, "tool_calls", None)
+        if tool_calls:
+            body_lines.append(f"tool_calls ({len(tool_calls)}):")
+            for tc in tool_calls:
+                body_lines.append(json.dumps(tc, indent=2, default=str))
 
-            parts.append("\n".join(section_lines))
+        # tool_call_id on ToolMessages
+        tool_call_id = getattr(msg, "tool_call_id", None)
+        if tool_call_id:
+            body_lines.append(f"tool_call_id: {tool_call_id}")
 
-            # Worker → Orchestrator
-            response = result.get("response", "")
-            if response:
-                resp_preview = response[:200] + ("…" if len(response) > 200 else "")
-                parts.append(f"━━━ {agent_name} → Orchestrator ━━━\n\"{resp_preview}\"")
+        # name (tool name on ToolMessages)
+        name = getattr(msg, "name", None)
+        if name:
+            body_lines.append(f"name: {name}")
 
-    # 3. Last AIMessage without tool_calls = final orchestrator reply to user
-    final_ai = None
-    for msg in messages:
-        if hasattr(msg, "type") and msg.type == "ai" and not getattr(msg, "tool_calls", []):
-            final_ai = msg
-    if final_ai is not None:
-        final_text = final_ai.content if isinstance(final_ai.content, str) else str(final_ai.content)
-        preview = final_text[:200] + ("…" if len(final_text) > 200 else "")
-        parts.append(f"━━━ Orchestrator → User ━━━\n\"{preview}\"")
+        # additional_kwargs (often contains raw function_call data)
+        additional = getattr(msg, "additional_kwargs", None)
+        if additional:
+            body_lines.append(f"additional_kwargs:\n{json.dumps(additional, indent=2, default=str)}")
 
-    return "\n\n".join(parts) if parts else "No worker agents called."
+        # response_metadata (model info, token usage, etc.)
+        resp_meta = getattr(msg, "response_metadata", None)
+        if resp_meta:
+            body_lines.append(f"response_metadata:\n{json.dumps(resp_meta, indent=2, default=str)}")
+
+        parts.append(header + "\n" + "\n".join(body_lines) if body_lines else header)
+
+    return "\n\n".join(parts) if parts else "No messages in current turn."
