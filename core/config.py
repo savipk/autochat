@@ -23,11 +23,11 @@ def get_azure_openai_endpoint() -> str:
 
 
 def get_azure_openai_deployment() -> str:
-    return os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+    return os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
 
 def get_azure_openai_api_version() -> str:
-    return os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+    return os.getenv("AZURE_OPENAI_API_VERSION")
 
 
 DEFAULT_TEMPERATURE = 0.7
