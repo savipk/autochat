@@ -170,50 +170,110 @@ async def on_message(message: cl.Message):
     await msg.send()
 
 
+def _summarize_tool_content(content) -> str:
+    """Return a short human-readable summary of an inner tool result."""
+    if isinstance(content, str):
+        return content[:120] + ("…" if len(content) > 120 else "")
+    if not isinstance(content, dict):
+        return str(content)[:120]
+    # Pull out meaningful fields when present
+    meaningful = {}
+    for key in ("success", "count", "completionScore", "topSkills", "error", "message"):
+        if key in content:
+            meaningful[key] = content[key]
+    if meaningful:
+        return ", ".join(f"{k}={v}" for k, v in meaningful.items())
+    # Fall back to listing keys
+    keys = list(content.keys())
+    summary = f"{{{', '.join(keys[:6])}}}"
+    if len(keys) > 6:
+        summary += f" (+{len(keys) - 6} more)"
+    return summary
+
+
 def _build_debug_output(messages: list) -> str:
-    # Build a map from tool_call_id -> args so we can look up the input message
-    tool_call_args: dict[str, dict] = {}
+    # Build a map from tool_call_id -> tool_call so we can look up args
+    tool_call_map: dict[str, dict] = {}
     for msg in messages:
         if not hasattr(msg, "type") or msg.type != "ai":
             continue
         for tc in getattr(msg, "tool_calls", []):
             tc_id = tc.get("id", "")
             if tc_id:
-                tool_call_args[tc_id] = tc.get("args", {})
+                tool_call_map[tc_id] = tc
 
     parts = []
+
+    # 1. User → Orchestrator
     for msg in messages:
-        if not (hasattr(msg, "type") and msg.type == "tool"):
+        if hasattr(msg, "type") and msg.type == "human":
+            user_text = msg.content if isinstance(msg.content, str) else str(msg.content)
+            parts.append(f"━━━ User → Orchestrator ━━━\n\"{user_text}\"")
+            break
+
+    # 2. Each AIMessage with tool_calls = orchestrator delegating to a worker agent
+    tool_messages: dict[str, object] = {}
+    for msg in messages:
+        if hasattr(msg, "type") and msg.type == "tool":
+            tc_id = getattr(msg, "tool_call_id", "")
+            if tc_id:
+                tool_messages[tc_id] = msg
+
+    for msg in messages:
+        if not (hasattr(msg, "type") and msg.type == "ai"):
+            continue
+        tool_calls = getattr(msg, "tool_calls", [])
+        if not tool_calls:
             continue
 
-        tool_name = getattr(msg, "name", "")
-        tool_call_id = getattr(msg, "tool_call_id", "")
-        args = tool_call_args.get(tool_call_id, {})
-        input_message = args.get("message", "")
+        for tc in tool_calls:
+            agent_name = tc.get("name", "worker")
+            args = tc.get("args", {})
+            delegated_message = args.get("message", "")
+            tc_id = tc.get("id", "")
 
-        try:
-            content = msg.content
-            result = json.loads(content) if isinstance(content, str) else content
-        except (json.JSONDecodeError, TypeError):
+            # Orchestrator → Worker header
+            section_lines = [f"━━━ Orchestrator → {agent_name} (worker agent) ━━━"]
+            if delegated_message:
+                section_lines.append(f'"{delegated_message}"')
+
+            # Find the corresponding ToolMessage
+            tool_msg = tool_messages.get(tc_id)
             result = {}
+            if tool_msg is not None:
+                try:
+                    raw = tool_msg.content
+                    result = json.loads(raw) if isinstance(raw, str) else raw
+                except (json.JSONDecodeError, TypeError):
+                    result = {}
+                if not isinstance(result, dict):
+                    result = {}
 
-        if not isinstance(result, dict):
-            result = {}
+            # Inner tool calls made by the worker agent
+            for inner in result.get("tool_calls", []):
+                inner_name = inner.get("name", "")
+                inner_content = inner.get("content", "")
+                if inner_name:
+                    section_lines.append(f"  ▶ {agent_name} → {inner_name}")
+                    summary = _summarize_tool_content(inner_content)
+                    section_lines.append(f"  ◀ {inner_name} → {agent_name}: {summary}")
 
-        header = f"▶ {tool_name}"
-        if input_message:
-            header += f'  ·  "{input_message}"'
-        lines = [header]
+            parts.append("\n".join(section_lines))
 
-        for inner in result.get("tool_calls", []):
-            inner_name = inner.get("name", "")
-            if inner_name:
-                lines.append(f"  → {inner_name}")
+            # Worker → Orchestrator
+            response = result.get("response", "")
+            if response:
+                resp_preview = response[:200] + ("…" if len(response) > 200 else "")
+                parts.append(f"━━━ {agent_name} → Orchestrator ━━━\n\"{resp_preview}\"")
 
-        response = result.get("response", "")
-        if response:
-            lines.append(f"◀ {response}")
-
-        parts.append("\n".join(lines))
+    # 3. Last AIMessage without tool_calls = final orchestrator reply to user
+    final_ai = None
+    for msg in messages:
+        if hasattr(msg, "type") and msg.type == "ai" and not getattr(msg, "tool_calls", []):
+            final_ai = msg
+    if final_ai is not None:
+        final_text = final_ai.content if isinstance(final_ai.content, str) else str(final_ai.content)
+        preview = final_text[:200] + ("…" if len(final_text) > 200 else "")
+        parts.append(f"━━━ Orchestrator → User ━━━\n\"{preview}\"")
 
     return "\n\n".join(parts) if parts else "No worker agents called."
