@@ -34,6 +34,44 @@ from core.adapters.chainlit_adapter import (
 # DATA LAYER
 # ============================================================================
 
+def _get_users() -> dict:
+    return {
+        "admin": {
+            "password": os.getenv("CL_ADMIN_PASS", "admin"),
+            "profile_path": "data/sample_profile.json",
+        },
+        "travis": {
+            "password": os.getenv("CL_TRAVIS_PASS", "travis"),
+            "profile_path": "data/sample_profile.json",
+        },
+        "john": {
+            "password": os.getenv("CL_JOHN_PASS", "john"),
+            "profile_path": "data/low_profile_eval.json",
+        },
+        "rob": {
+            "password": os.getenv("CL_ROB_PASS", "rob"),
+            "profile_path": "data/rob_profile.json",
+        },
+        "miro": {
+            "password": os.getenv("CL_MIRO_PASS", "miro"),
+            "profile_path": "data/miro_profile.json",
+        },
+    }
+
+
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+    """Multi-user auth with per-user profile mapping."""
+    users = _get_users()
+    user = users.get(username)
+    if user and password == user["password"]:
+        return cl.User(
+            identifier=username,
+            metadata={"role": "user", "profile_path": user["profile_path"]},
+        )
+    return None
+
+
 @cl.data_layer
 def get_data_layer():
     """Persist chat threads so Chainlit can show sidebar history."""
@@ -44,9 +82,16 @@ def get_data_layer():
 # HELPERS
 # ============================================================================
 
+def _profile_path_for_session() -> str | None:
+    user = cl.user_session.get("user")
+    if user and hasattr(user, "metadata") and user.metadata:
+        return user.metadata.get("profile_path")
+    return None
+
+
 def _build_app_context() -> AppContext:
     """Build an ``AppContext`` from the current Chainlit user session."""
-    profile = load_profile()
+    profile = load_profile(_profile_path_for_session())
     core = profile.get("core", {}) if profile else {}
     name_info = core.get("name", {})
     first_name = name_info.get("businessFirstName", "")
@@ -107,7 +152,7 @@ async def on_chat_resume(thread: ThreadDict):
     """Resume a previous chat session."""
     cl.user_session.set("thread_id", cl.context.session.id)
 
-    profile = load_profile()
+    profile = load_profile(_profile_path_for_session())
     core = profile.get("core", {}) if profile else {}
     name_info = core.get("name", {})
     first_name = name_info.get("businessFirstName", "")
