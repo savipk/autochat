@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -119,22 +119,37 @@ async def poll_update(x_username: str = Header(...)):
 # ---------------------------------------------------------------------------
 
 @router.get("/events")
-async def profile_events(x_username: str = Header(...)):
-    """SSE stream that pushes panel open/refresh events to the browser."""
+async def profile_events(username: str = Query(...)):
+    """SSE stream that pushes panel open/refresh events to the browser.
+
+    Uses a query parameter (not a header) so the browser-native EventSource
+    API can connect without custom headers.
+    """
     queue: asyncio.Queue = asyncio.Queue()
-    _sse_queues.setdefault(x_username, []).append(queue)
+    _sse_queues.setdefault(username, []).append(queue)
 
     async def _generator():
         try:
+            # Send an initial keepalive so the connection is established
+            yield ": connected\n\n"
             while True:
                 event = await queue.get()
                 yield f"data: {json.dumps(event)}\n\n"
         except asyncio.CancelledError:
             pass
         finally:
-            _sse_queues.get(x_username, []).remove(queue) if queue in _sse_queues.get(x_username, []) else None
+            queues = _sse_queues.get(username, [])
+            if queue in queues:
+                queues.remove(queue)
 
-    return StreamingResponse(_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        _generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

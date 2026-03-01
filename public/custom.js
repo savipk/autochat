@@ -108,65 +108,39 @@
   }
 
   // ---------------------------------------------------------------------------
-  // SSE connection
+  // SSE connection — uses native EventSource with username as query param
   // ---------------------------------------------------------------------------
   function connectSSE() {
-    if (!_username) return;
+    if (!_username) {
+      console.warn("[profile-panel] No username — SSE not connected");
+      return;
+    }
     if (_eventSource) _eventSource.close();
 
-    _eventSource = new EventSource("/api/profile/events?" + new URLSearchParams({
-      // EventSource doesn't support custom headers, so we pass username as query
-      // But our endpoint uses Header(...). We'll use a fetch-based SSE reader instead.
-    }));
-    // EventSource doesn't support custom headers, so use fetch-based approach
-    _eventSource.close();
-    _eventSource = null;
-    connectSSEViaFetch();
-  }
+    var url = "/api/profile/events?username=" + encodeURIComponent(_username);
+    _eventSource = new EventSource(url);
 
-  function connectSSEViaFetch() {
-    fetch("/api/profile/events", {
-      headers: { "X-Username": _username },
-      credentials: "include",
-    }).then(function (response) {
-      var reader = response.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = "";
-
-      function read() {
-        reader.read().then(function (result) {
-          if (result.done) {
-            // Reconnect after a delay
-            setTimeout(connectSSEViaFetch, 3000);
-            return;
-          }
-          buffer += decoder.decode(result.value, { stream: true });
-          var lines = buffer.split("\n");
-          buffer = lines.pop(); // keep incomplete line in buffer
-
-          lines.forEach(function (line) {
-            if (line.startsWith("data: ")) {
-              try {
-                var event = JSON.parse(line.substring(6));
-                handleSSEEvent(event);
-              } catch (e) { /* ignore parse errors */ }
-            }
-          });
-          read();
-        }).catch(function () {
-          setTimeout(connectSSEViaFetch, 3000);
-        });
+    _eventSource.onmessage = function (e) {
+      try {
+        var event = JSON.parse(e.data);
+        handleSSEEvent(event);
+      } catch (err) {
+        // ignore parse errors (e.g. keepalive comments)
       }
-      read();
-    }).catch(function () {
-      setTimeout(connectSSEViaFetch, 3000);
-    });
+    };
+
+    _eventSource.onerror = function () {
+      console.warn("[profile-panel] SSE connection error — will auto-reconnect");
+    };
+
+    console.log("[profile-panel] SSE connected for user:", _username);
   }
 
   function handleSSEEvent(event) {
+    console.log("[profile-panel] SSE event:", event);
     if (event.type === "open_panel") {
       openPanel();
-      loadProfile(); // refresh data
+      loadProfile();
     } else if (event.type === "refresh") {
       loadProfile();
     }
