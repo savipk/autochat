@@ -1,4 +1,3 @@
-console.log("[profile-panel] custom.js loaded at", new Date().toISOString());
 /**
  * Profile Editor Side Panel
  *
@@ -40,29 +39,18 @@ console.log("[profile-panel] custom.js loaded at", new Date().toISOString());
     fetch("/user", { credentials: "include" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (!data) {
-          console.log("[profile-panel] Not logged in yet — will retry");
-          return;
-        }
+        if (!data) return;
         _username = data.identifier || data.username || "";
         _profilePath = (data.metadata || {}).profile_path || "";
-        console.log("[profile-panel] Authenticated — username:", _username, "profilePath:", _profilePath);
-
-        if (!_username || !_profilePath) {
-          console.warn("[profile-panel] Missing username or profilePath");
-          return;
-        }
+        if (!_username || !_profilePath) return;
 
         _bootstrapped = true;
         clearInterval(_bootstrapTimer);
         createPanel();
         connectSSE();
         startPolling();
-        console.log("[profile-panel] Initialised");
       })
-      .catch(function (err) {
-        console.log("[profile-panel] /user fetch failed — will retry:", err);
-      });
+      .catch(function () {});
   }
 
   // Try immediately, then every 2 seconds until logged in
@@ -104,37 +92,25 @@ console.log("[profile-panel] custom.js loaded at", new Date().toISOString());
   // SSE connection — uses native EventSource with username as query param
   // ---------------------------------------------------------------------------
   function connectSSE() {
-    if (!_username) {
-      console.warn("[profile-panel] No username — SSE not connected");
-      return;
-    }
+    if (!_username) return;
     if (_eventSource) _eventSource.close();
 
     var url = "/api/profile/events?username=" + encodeURIComponent(_username);
-    console.log("[profile-panel] Opening EventSource:", url);
     _eventSource = new EventSource(url);
 
-    _eventSource.onopen = function () {
-      console.log("[profile-panel] SSE onopen — readyState:", _eventSource.readyState);
-    };
-
     _eventSource.onmessage = function (e) {
-      console.log("[profile-panel] SSE onmessage raw:", e.data);
       try {
         var event = JSON.parse(e.data);
         handleSSEEvent(event);
-      } catch (err) {
-        console.warn("[profile-panel] SSE parse error:", err, "data:", e.data);
-      }
+      } catch (err) { /* ignore */ }
     };
 
-    _eventSource.onerror = function (e) {
-      console.warn("[profile-panel] SSE onerror — readyState:", _eventSource.readyState, e);
+    _eventSource.onerror = function () {
+      // EventSource auto-reconnects
     };
   }
 
   function handleSSEEvent(event) {
-    console.log("[profile-panel] SSE event:", event);
     if (event.type === "open_panel") {
       openPanel();
       loadProfile();
