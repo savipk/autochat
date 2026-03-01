@@ -1,3 +1,4 @@
+console.log("[profile-panel] custom.js loaded at", new Date().toISOString());
 /**
  * Profile Editor Side Panel
  *
