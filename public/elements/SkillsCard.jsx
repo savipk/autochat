@@ -9,8 +9,8 @@ export default function SkillsCard() {
     const additionalSkills = props.additionalSkills || []
     const confidence = props.confidence || 0
 
-    const [selectedTop, setSelectedTop] = useState(() => new Set(topSkills))
-    const [selectedAdditional, setSelectedAdditional] = useState(() => new Set(additionalSkills))
+    const [selectedTop, setSelectedTop] = useState(() => new Set())
+    const [selectedAdditional, setSelectedAdditional] = useState(() => new Set())
     const [customInput, setCustomInput] = useState("")
     const [isSaved, setIsSaved] = useState(false)
 
@@ -46,6 +46,10 @@ export default function SkillsCard() {
 
     const confidencePercent = Math.round(confidence * 100)
 
+    const hasCustomSkills = customInput.trim().length > 0
+    const hasAnySelection = selectedTop.size > 0 || selectedAdditional.size > 0 || hasCustomSkills
+    const saveDisabled = isSaved || !hasAnySelection
+
     return (
         <Card className="w-full max-w-md">
             <CardHeader className="pb-2">
@@ -60,6 +64,9 @@ export default function SkillsCard() {
                         </span>
                     )}
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                    Select the skills you'd like to add to your profile
+                </p>
             </CardHeader>
             <CardContent className="space-y-4">
                 {topSkills.length > 0 && (
@@ -121,10 +128,10 @@ export default function SkillsCard() {
 
                 <Button
                     className="w-full font-medium rounded"
-                    style={isSaved
-                        ? { backgroundColor: "#464775", color: "#fff" }
+                    style={saveDisabled
+                        ? { backgroundColor: "#464775", color: "#fff", opacity: isSaved ? 1 : 0.5 }
                         : { backgroundColor: "#6264A7", color: "#fff" }}
-                    disabled={isSaved}
+                    disabled={saveDisabled}
                     onClick={handleSave}
                 >
                     {isSaved ? (
