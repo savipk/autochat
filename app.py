@@ -8,7 +8,7 @@ import os
 import sys
 
 import chainlit as cl
-from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
+from core.data_layer import SQLiteCompatibleDataLayer
 from chainlit.types import ThreadDict
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import InMemorySaver
@@ -75,7 +75,7 @@ def auth_callback(username: str, password: str):
 @cl.data_layer
 def get_data_layer():
     """Persist chat threads so Chainlit can show sidebar history."""
-    return SQLAlchemyDataLayer(conninfo="sqlite+aiosqlite:///./data/data.db")
+    return SQLiteCompatibleDataLayer(conninfo="sqlite+aiosqlite:///./data/data.db")
 
 
 # ============================================================================
