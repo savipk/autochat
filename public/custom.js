@@ -26,55 +26,47 @@
   let _eventSource = null;
 
   // ---------------------------------------------------------------------------
-  // Bootstrap
+  // Bootstrap — polls /user until authenticated, then initialises panel + SSE.
+  // This handles the case where custom.js loads on the login page before the
+  // user has logged in.  After login Chainlit does a client-side navigation so
+  // the IIFE doesn't re-run; the interval below keeps checking.
   // ---------------------------------------------------------------------------
-  function waitForChat(cb) {
-    var observer = new MutationObserver(function () {
-      var root = document.getElementById("root");
-      if (!root) return;
-      if (root.querySelector("main") || root.querySelector("[class*='chat']")) {
-        observer.disconnect();
-        cb();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    var root = document.getElementById("root");
-    if (root && (root.querySelector("main") || root.querySelector("[class*='chat']"))) {
-      observer.disconnect();
-      cb();
-    }
-  }
+  var _bootstrapped = false;
 
-  waitForChat(function () {
-    createPanel();
-    extractUserContext(function () {
-      if (!_username || !_profilePath) return;
-      connectSSE();
-      startPolling();
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Extract user context
-  // ---------------------------------------------------------------------------
-  function extractUserContext(cb) {
-    if (window.__chainlit__ && window.__chainlit__.user) {
-      _username = window.__chainlit__.user.identifier || "";
-      _profilePath = (window.__chainlit__.user.metadata || {}).profile_path || "";
-      if (_username && _profilePath) { cb(); return; }
-    }
+  function tryBootstrap() {
+    if (_bootstrapped) return;
 
     fetch("/user", { credentials: "include" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (data) {
-          _username = data.identifier || data.username || "";
-          _profilePath = (data.metadata || {}).profile_path || "";
+        if (!data) {
+          console.log("[profile-panel] Not logged in yet — will retry");
+          return;
         }
-        cb();
+        _username = data.identifier || data.username || "";
+        _profilePath = (data.metadata || {}).profile_path || "";
+        console.log("[profile-panel] Authenticated — username:", _username, "profilePath:", _profilePath);
+
+        if (!_username || !_profilePath) {
+          console.warn("[profile-panel] Missing username or profilePath");
+          return;
+        }
+
+        _bootstrapped = true;
+        clearInterval(_bootstrapTimer);
+        createPanel();
+        connectSSE();
+        startPolling();
+        console.log("[profile-panel] Initialised");
       })
-      .catch(function () { cb(); });
+      .catch(function (err) {
+        console.log("[profile-panel] /user fetch failed — will retry:", err);
+      });
   }
+
+  // Try immediately, then every 2 seconds until logged in
+  var _bootstrapTimer = setInterval(tryBootstrap, 2000);
+  tryBootstrap();
 
   // ---------------------------------------------------------------------------
   // Panel creation — appended to body, position:fixed, off-screen by default
