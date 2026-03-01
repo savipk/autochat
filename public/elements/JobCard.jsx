@@ -108,7 +108,8 @@ export default function JobCard() {
                 <div className="flex gap-2 pt-2 border-t">
                     <Button
                         size="sm"
-                        className="text-xs"
+                        className="text-xs font-medium rounded"
+                        style={{ backgroundColor: "#6264A7", color: "#fff" }}
                         onClick={() => sendUserMessage(`Tell me more about the ${title} role (${jobId})`)}
                     >
                         Ask about role
@@ -116,7 +117,8 @@ export default function JobCard() {
                     <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs"
+                        className="text-xs font-medium rounded"
+                        style={{ borderColor: "#6264A7", color: "#6264A7" }}
                         onClick={() => sendUserMessage(`Draft a message to ${hiringManager} about the ${title} role`)}
                     >
                         Draft message
@@ -124,7 +126,8 @@ export default function JobCard() {
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="text-xs px-2"
+                        className="text-xs px-2 rounded"
+                        style={{ color: "#6264A7" }}
                     >
                         <ThumbsUp className="h-3.5 w-3.5" />
                     </Button>

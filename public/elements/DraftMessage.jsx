@@ -45,7 +45,8 @@ export default function DraftMessage() {
                 <div className="flex gap-2">
                     <Button
                         size="sm"
-                        className="text-xs"
+                        className="text-xs font-medium rounded"
+                        style={{ backgroundColor: "#6264A7", color: "#fff" }}
                         onClick={() => sendUserMessage("Send the message")}
                     >
                         <Send className="h-3.5 w-3.5 mr-1" />
@@ -54,7 +55,8 @@ export default function DraftMessage() {
                     <Button
                         size="sm"
                         variant="outline"
-                        className="text-xs"
+                        className="text-xs font-medium rounded"
+                        style={{ borderColor: "#6264A7", color: "#6264A7" }}
                         onClick={() => sendUserMessage("Edit the message")}
                     >
                         <Edit className="h-3.5 w-3.5 mr-1" />

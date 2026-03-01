@@ -71,7 +71,10 @@ export default function SkillsCard() {
                                     key={skill}
                                     size="sm"
                                     variant={selectedTop.has(skill) ? "default" : "outline"}
-                                    className="text-xs h-7"
+                                    className="text-xs h-7 font-medium rounded"
+                                    style={selectedTop.has(skill)
+                                        ? { backgroundColor: "#6264A7", color: "#fff" }
+                                        : { borderColor: "#6264A7", color: "#6264A7" }}
                                     disabled={isSaved}
                                     onClick={() => toggleSkill(skill, selectedTop, setSelectedTop)}
                                 >
@@ -91,7 +94,10 @@ export default function SkillsCard() {
                                     key={skill}
                                     size="sm"
                                     variant={selectedAdditional.has(skill) ? "default" : "outline"}
-                                    className="text-xs h-7"
+                                    className="text-xs h-7 font-medium rounded"
+                                    style={selectedAdditional.has(skill)
+                                        ? { backgroundColor: "#6264A7", color: "#fff" }
+                                        : { borderColor: "#6264A7", color: "#6264A7" }}
                                     disabled={isSaved}
                                     onClick={() => toggleSkill(skill, selectedAdditional, setSelectedAdditional)}
                                 >
@@ -114,7 +120,10 @@ export default function SkillsCard() {
                 </div>
 
                 <Button
-                    className="w-full"
+                    className="w-full font-medium rounded"
+                    style={isSaved
+                        ? { backgroundColor: "#464775", color: "#fff" }
+                        : { backgroundColor: "#6264A7", color: "#fff" }}
                     disabled={isSaved}
                     onClick={handleSave}
                 >
