@@ -136,9 +136,18 @@ checkpointer = InMemorySaver()
 registry = build_agent_catalog(checkpointer=checkpointer)
 orchestrator = create_orchestrator_agent(registry, checkpointer=checkpointer)
 
-# Mount profile editor API routes on Chainlit's FastAPI app
+# Mount profile editor API routes on Chainlit's FastAPI app.
+# We must insert our routes BEFORE Chainlit's catch-all "/{full_path:path}"
+# route, otherwise the catch-all serves index.html for our SSE endpoint.
 from chainlit.server import app as chainlit_app
+
 chainlit_app.include_router(profile_router)
+
+# Move our routes before the catch-all by re-ordering the route list
+_our_prefixes = tuple(r.path for r in profile_router.routes)
+_ours = [r for r in chainlit_app.routes if getattr(r, "path", "").startswith("/api/profile")]
+_rest = [r for r in chainlit_app.routes if r not in _ours]
+chainlit_app.routes[:] = _ours + _rest
 
 
 # ============================================================================
