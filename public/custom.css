@@ -43,23 +43,21 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
 
 /* ===== Profile Side Panel Layout ===== */
 
-.autochat-layout {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+/* Smooth margin transition on the main app when panel opens/closes */
+#root {
+  transition: margin-right 0.3s ease;
 }
 
-.autochat-chat {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  overflow: auto;
+#root.autochat-panel-open {
+  margin-right: 400px;
 }
 
+/* Panel: fixed to right edge, hidden off-screen by default */
 .autochat-profile-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
   width: 400px;
-  min-width: 400px;
   height: 100%;
   border-left: 1px solid #e5e7eb;
   background: #fafafa;
@@ -68,6 +66,12 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
+  z-index: 1000;
+  transition: right 0.3s ease;
+}
+
+.autochat-profile-panel.open {
+  right: 0;
 }
 
 /* Panel header */
@@ -83,6 +87,21 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   font-size: 16px;
   font-weight: 600;
   color: #1f2937;
+}
+
+/* Close button */
+.profile-panel-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.profile-panel-close:hover {
+  color: #374151;
 }
 
 /* Score badge */

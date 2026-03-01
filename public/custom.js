@@ -1,8 +1,9 @@
 /**
  * Profile Editor Side Panel
  *
- * Injects a persistent profile editor panel to the right of the Chainlit chat.
- * Vanilla JS — no React dependency outside Chainlit's element system.
+ * Panel is hidden by default and slides in from the right when the server
+ * pushes an SSE "open_panel" event (triggered by profile-related messages).
+ * Appended to document.body as position:fixed — no React DOM nodes are moved.
  */
 (function () {
   "use strict";
@@ -15,41 +16,40 @@
 
   let _username = "";
   let _profilePath = "";
-  let _originalProfile = null;   // snapshot of profile when loaded
-  let _currentProfile = null;    // live editor state
-  let _drafts = [];              // [{id, timestamp, label}]
-  let _draftIndex = -1;          // -1 = live profile (no draft selected)
+  let _originalProfile = null;
+  let _currentProfile = null;
+  let _drafts = [];
+  let _draftIndex = -1;
   let _panelEl = null;
   let _pollTimer = null;
+  let _panelOpen = false;
+  let _eventSource = null;
 
   // ---------------------------------------------------------------------------
-  // Bootstrap — wait for Chainlit DOM, then inject panel
+  // Bootstrap
   // ---------------------------------------------------------------------------
   function waitForChat(cb) {
-    const observer = new MutationObserver(function () {
-      // Look for the main content area — Chainlit renders into #root
-      const root = document.getElementById("root");
+    var observer = new MutationObserver(function () {
+      var root = document.getElementById("root");
       if (!root) return;
-      // Wait until something meaningful renders inside root
       if (root.querySelector("main") || root.querySelector("[class*='chat']")) {
         observer.disconnect();
-        cb(root);
+        cb();
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    // Also try immediately
-    const root = document.getElementById("root");
+    var root = document.getElementById("root");
     if (root && (root.querySelector("main") || root.querySelector("[class*='chat']"))) {
       observer.disconnect();
-      cb(root);
+      cb();
     }
   }
 
-  waitForChat(function (root) {
+  waitForChat(function () {
+    createPanel();
     extractUserContext(function () {
       if (!_username || !_profilePath) return;
-      injectPanel(root);
-      loadProfile();
+      connectSSE();
       startPolling();
     });
   });
@@ -58,14 +58,12 @@
   // Extract user context
   // ---------------------------------------------------------------------------
   function extractUserContext(cb) {
-    // Try window.__chainlit__ first
     if (window.__chainlit__ && window.__chainlit__.user) {
       _username = window.__chainlit__.user.identifier || "";
       _profilePath = (window.__chainlit__.user.metadata || {}).profile_path || "";
       if (_username && _profilePath) { cb(); return; }
     }
 
-    // Fallback: fetch from Chainlit's auth endpoint
     fetch("/user", { credentials: "include" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
@@ -79,41 +77,99 @@
   }
 
   // ---------------------------------------------------------------------------
-  // DOM injection
+  // Panel creation — appended to body, position:fixed, off-screen by default
   // ---------------------------------------------------------------------------
-  function injectPanel(root) {
-    // Find the first child that holds the full-width layout
-    var mainChild = root.querySelector("main") || root.children[0];
-    if (!mainChild) return;
-
-    // Wrap existing content
-    var wrapper = document.createElement("div");
-    wrapper.className = "autochat-layout";
-
-    var chatWrap = document.createElement("div");
-    chatWrap.className = "autochat-chat";
-
-    // Move all root children into chatWrap
-    while (mainChild.parentNode === root && root.firstChild) {
-      chatWrap.appendChild(root.firstChild);
-    }
-    // If mainChild is nested, just move mainChild
-    if (chatWrap.childNodes.length === 0) {
-      var parent = mainChild.parentNode;
-      var siblings = Array.from(parent.children);
-      siblings.forEach(function (s) { chatWrap.appendChild(s); });
-      parent.appendChild(wrapper);
-    } else {
-      root.appendChild(wrapper);
-    }
-
-    wrapper.appendChild(chatWrap);
-
-    // Create panel
+  function createPanel() {
     _panelEl = document.createElement("div");
     _panelEl.className = "autochat-profile-panel";
     _panelEl.innerHTML = '<div class="profile-panel-loading">Loading profile...</div>';
-    wrapper.appendChild(_panelEl);
+    document.body.appendChild(_panelEl);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Panel open / close
+  // ---------------------------------------------------------------------------
+  function openPanel() {
+    if (_panelOpen) return;
+    _panelOpen = true;
+    _panelEl.classList.add("open");
+    document.getElementById("root").classList.add("autochat-panel-open");
+    // Load profile data on first open
+    if (!_currentProfile) {
+      loadProfile();
+    }
+  }
+
+  function closePanel() {
+    if (!_panelOpen) return;
+    _panelOpen = false;
+    _panelEl.classList.remove("open");
+    document.getElementById("root").classList.remove("autochat-panel-open");
+  }
+
+  // ---------------------------------------------------------------------------
+  // SSE connection
+  // ---------------------------------------------------------------------------
+  function connectSSE() {
+    if (!_username) return;
+    if (_eventSource) _eventSource.close();
+
+    _eventSource = new EventSource("/api/profile/events?" + new URLSearchParams({
+      // EventSource doesn't support custom headers, so we pass username as query
+      // But our endpoint uses Header(...). We'll use a fetch-based SSE reader instead.
+    }));
+    // EventSource doesn't support custom headers, so use fetch-based approach
+    _eventSource.close();
+    _eventSource = null;
+    connectSSEViaFetch();
+  }
+
+  function connectSSEViaFetch() {
+    fetch("/api/profile/events", {
+      headers: { "X-Username": _username },
+      credentials: "include",
+    }).then(function (response) {
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = "";
+
+      function read() {
+        reader.read().then(function (result) {
+          if (result.done) {
+            // Reconnect after a delay
+            setTimeout(connectSSEViaFetch, 3000);
+            return;
+          }
+          buffer += decoder.decode(result.value, { stream: true });
+          var lines = buffer.split("\n");
+          buffer = lines.pop(); // keep incomplete line in buffer
+
+          lines.forEach(function (line) {
+            if (line.startsWith("data: ")) {
+              try {
+                var event = JSON.parse(line.substring(6));
+                handleSSEEvent(event);
+              } catch (e) { /* ignore parse errors */ }
+            }
+          });
+          read();
+        }).catch(function () {
+          setTimeout(connectSSEViaFetch, 3000);
+        });
+      }
+      read();
+    }).catch(function () {
+      setTimeout(connectSSEViaFetch, 3000);
+    });
+  }
+
+  function handleSSEEvent(event) {
+    if (event.type === "open_panel") {
+      openPanel();
+      loadProfile(); // refresh data
+    } else if (event.type === "refresh") {
+      loadProfile();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -137,7 +193,7 @@
         refreshDraftList(function () { renderPanel(); });
       })
       .catch(function () {
-        _panelEl.innerHTML = '<div class="profile-panel-loading">Failed to load profile.</div>';
+        if (_panelEl) _panelEl.innerHTML = '<div class="profile-panel-loading">Failed to load profile.</div>';
       });
   }
 
@@ -222,9 +278,12 @@
 
     var html = '';
 
-    // Header
+    // Header with close button
     html += '<div class="profile-panel-header">';
-    html += '  <h2>Profile Editor</h2>';
+    html += '  <div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '    <h2>Profile Editor</h2>';
+    html += '    <button class="profile-panel-close" data-action="close-panel" title="Close">&times;</button>';
+    html += '  </div>';
     if (typeof score === "number") {
       html += '  <div class="profile-score-badge">' + score + '% complete</div>';
     }
@@ -232,36 +291,21 @@
 
     // Read-only name/title
     html += '<div class="profile-readonly-info">';
-    html += '  <div class="info-name">' + esc(fullName || "—") + '</div>';
+    html += '  <div class="info-name">' + esc(fullName || "\u2014") + '</div>';
     if (title) html += '  <div class="info-detail">' + esc(title) + '</div>';
     if (rank) html += '  <div class="info-detail">' + esc(rank) + '</div>';
     html += '</div>';
 
     // Scrollable body
     html += '<div class="profile-panel-body">';
-
-    // --- Experience ---
     html += renderExperienceSection(core.experience);
-
-    // --- Education ---
     html += renderEducationSection(core.qualification);
-
-    // --- Skills ---
     html += renderSkillsSection(core);
-
-    // --- Career Aspirations ---
     html += renderAspirationsSection(core.careerAspirationPreference);
-
-    // --- Location Preferences ---
     html += renderLocationSection(core.careerLocationPreference);
-
-    // --- Role Preferences ---
     html += renderRolesSection(core.careerRolePreference);
-
-    // --- Languages ---
     html += renderLanguagesSection(core.language);
-
-    html += '</div>'; // end body
+    html += '</div>';
 
     // Footer
     html += renderFooter();
@@ -385,7 +429,7 @@
     roles.forEach(function (r) {
       var rc = r.roleClassification || {};
       h += '<div class="profile-group-item">';
-      h += '<div class="group-item-title">' + esc(rc.description || "—") + '</div>';
+      h += '<div class="group-item-title">' + esc(rc.description || "\u2014") + '</div>';
       (rc.children || []).forEach(function (c) {
         h += '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(c.description || "") + '</div>';
       });
@@ -420,12 +464,11 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Footer: draft nav + save/submit buttons
+  // Footer
   // ---------------------------------------------------------------------------
   function renderFooter() {
     var h = '<div class="profile-panel-footer">';
 
-    // Draft navigation
     if (_drafts.length > 0) {
       var draftLabel = "";
       if (_draftIndex >= 0 && _draftIndex < _drafts.length) {
@@ -452,7 +495,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Event attachment (delegated)
+  // Event attachment
   // ---------------------------------------------------------------------------
   function attachEvents() {
     if (!_panelEl) return;
@@ -464,6 +507,7 @@
       var idx = parseInt(btn.getAttribute("data-index"), 10);
 
       switch (action) {
+        case "close-panel": closePanel(); break;
         case "save-draft": saveDraft(); break;
         case "submit-profile":
           collectFormData();
@@ -678,7 +722,6 @@
   }
 
   function formatTimestamp(ts) {
-    // ts = "20260301T143000Z"
     if (!ts || ts.length < 13) return ts;
     var m = ts.substring(4, 6);
     var d = ts.substring(6, 8);

@@ -4,10 +4,13 @@ FastAPI routes for the profile editor side panel.
 Mounted on Chainlit's app as ``/api/profile/*``.
 """
 
+import asyncio
+import json
 import logging
 from typing import Any
 
 from fastapi import APIRouter, Header, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from core.profile_manager import ProfileManager
@@ -19,6 +22,9 @@ router = APIRouter(prefix="/api/profile")
 # Tracks whether the profile was updated by the chat agent so the panel can poll.
 # Maps username -> bool
 _profile_updated_flags: dict[str, bool] = {}
+
+# SSE queues — one per connected username
+_sse_queues: dict[str, list[asyncio.Queue]] = {}
 
 
 def _manager(username: str, profile_path: str) -> ProfileManager:
@@ -109,12 +115,63 @@ async def poll_update(x_username: str = Header(...)):
 
 
 # ---------------------------------------------------------------------------
+# SSE endpoint — pushes panel events to the browser
+# ---------------------------------------------------------------------------
+
+@router.get("/events")
+async def profile_events(x_username: str = Header(...)):
+    """SSE stream that pushes panel open/refresh events to the browser."""
+    queue: asyncio.Queue = asyncio.Queue()
+    _sse_queues.setdefault(x_username, []).append(queue)
+
+    async def _generator():
+        try:
+            while True:
+                event = await queue.get()
+                yield f"data: {json.dumps(event)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            _sse_queues.get(x_username, []).remove(queue) if queue in _sse_queues.get(x_username, []) else None
+
+    return StreamingResponse(_generator(), media_type="text/event-stream")
+
+
+# ---------------------------------------------------------------------------
+# /whoami — returns username + profile_path for the logged-in user
+# ---------------------------------------------------------------------------
+
+# Populated by app.py on login so we can look up user metadata here.
+_user_metadata: dict[str, dict[str, str]] = {}
+
+
+def register_user_metadata(username: str, profile_path: str):
+    """Called from app.py to store the mapping for /whoami lookups."""
+    _user_metadata[username] = {"username": username, "profile_path": profile_path}
+
+
+@router.get("/whoami")
+async def whoami(x_username: str = Header(...)):
+    """Return user context needed by the side panel JS."""
+    meta = _user_metadata.get(x_username, {})
+    return meta or {"username": x_username, "profile_path": ""}
+
+
+# ---------------------------------------------------------------------------
 # Helpers used by app.py action callbacks
 # ---------------------------------------------------------------------------
+
+def push_panel_event(username: str, event_type: str = "open_panel"):
+    """Push an SSE event to all connected clients for this user."""
+    queues = _sse_queues.get(username, [])
+    for q in queues:
+        q.put_nowait({"type": event_type})
+
 
 def set_profile_updated(username: str):
     """Signal that the profile was updated (called after approve action)."""
     _profile_updated_flags[username] = True
+    push_panel_event(username, "refresh")
 
 
 def _clear_middleware_cache():
