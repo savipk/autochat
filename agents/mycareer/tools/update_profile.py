@@ -12,9 +12,16 @@ VALID_SECTIONS = ["skills"]
 
 
 @tool
-def update_profile(section: str = "skills") -> dict:
-    """Updates sections of the user's profile. Currently only skills can be added/edited."""
-    return run_update_profile(section=section)
+def update_profile(section: str = "skills", updates: dict | None = None) -> dict:
+    """Updates sections of the user's profile. Currently only skills can be added/edited.
+
+    Args:
+        section: The profile section to update. Currently only "skills" is supported.
+        updates: Optional dict with specific updates. For skills, pass
+                 {"skills": ["Python", "Docker", ...]} as a flat list, or
+                 {"topSkills": [...], "additionalSkills": [...]} for explicit placement.
+    """
+    return run_update_profile(section=section, updates=updates)
 
 
 def run_update_profile(
@@ -35,6 +42,12 @@ def run_update_profile(
         updates = {
             "topSkills": ["A2A", "MCP", "RAG"],
             "additionalSkills": ["Context Engineering", "Azure Open AI", "Azure AI Search"]
+        }
+    elif "skills" in updates and isinstance(updates["skills"], list):
+        flat = updates["skills"]
+        updates = {
+            "topSkills": flat[:3],
+            "additionalSkills": flat[3:],
         }
 
     profile = load_profile()

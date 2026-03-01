@@ -63,6 +63,19 @@ class TestUpdateProfile:
         assert result["success"] is False
         assert "not yet supported" in result["error"]
 
+    def test_update_skills_with_specific_list(self):
+        skills = ["Python", "Docker", "Kubernetes", "Terraform", "Go"]
+        result = self._run(updates={"skills": skills})
+        assert result["success"] is True
+        assert result["updated_fields"]["topSkills"] == ["Python", "Docker", "Kubernetes"]
+        assert result["updated_fields"]["additionalSkills"] == ["Terraform", "Go"]
+
+    def test_update_skills_with_empty_list(self):
+        result = self._run(updates={"skills": []})
+        assert result["success"] is True
+        assert result["updated_fields"]["topSkills"] == []
+        assert result["updated_fields"]["additionalSkills"] == []
+
 
 class TestInferSkills:
     def _run(self, **kwargs):
@@ -76,6 +89,20 @@ class TestInferSkills:
         assert "MCP" in result["topSkills"]
         assert "RAG" in result["topSkills"]
         assert len(result["additionalSkills"]) > 0
+
+    def test_returns_evidence(self):
+        result = self._run()
+        assert isinstance(result["evidence"], list)
+        assert len(result["evidence"]) > 0
+        for entry in result["evidence"]:
+            assert "skill" in entry
+            assert "source" in entry
+            assert "detail" in entry
+
+    def test_returns_confidence(self):
+        result = self._run()
+        assert "confidence" in result
+        assert 0 <= result["confidence"] <= 1
 
 
 class TestGetMatches:

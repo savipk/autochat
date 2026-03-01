@@ -9,7 +9,7 @@ instructs the model not to repeat data that is shown via custom elements (e.g.
 job cards, skill lists, draft message bodies).  The mapping is:
 
   get_matches     -> LLM intro text + JobCard elements       (LLM before elements)
-  infer_skills    -> LLM intro text + skills Text element     (LLM before elements)
+  infer_skills    -> LLM intro text + SkillsCard element       (LLM before elements)
   profile_analyzer-> LLM text + ProfileScore element          (LLM before elements)
   draft_message   -> LLM text + DraftMessage element          (LLM around elements)
   send_message    -> confirmation Text element (LLM only)
@@ -60,16 +60,12 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
         top = tool_result.get("topSkills", [])
         additional = tool_result.get("additionalSkills", [])
         if top or additional:
-            content = ""
-            if top:
-                content += "**Top Skills:** " + ", ".join(top) + "\n\n"
-            if additional:
-                content += "**Additional Skills:** " + ", ".join(additional)
-            elements.append(cl.Text(
-                name="suggested_skills",
-                content=content,
-                display="inline",
-            ))
+            elements.append(cl.CustomElement(name="SkillsCard", props={
+                "topSkills": top,
+                "additionalSkills": additional,
+                "evidence": tool_result.get("evidence", []),
+                "confidence": tool_result.get("confidence", 0),
+            }))
 
     elif tool_name == "send_message":
         if tool_result.get("success"):

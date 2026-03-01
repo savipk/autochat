@@ -27,6 +27,13 @@ def run_infer_skills() -> dict[str, Any]:
         "error": None,
         "topSkills": top_skills,
         "additionalSkills": additional_skills,
-        "evidence": [],
+        "evidence": [
+            {"skill": "A2A", "source": "experience", "detail": "Agent-to-agent protocol work in recent projects"},
+            {"skill": "MCP", "source": "experience", "detail": "Model Context Protocol integration experience"},
+            {"skill": "RAG", "source": "experience", "detail": "Retrieval-augmented generation pipeline development"},
+            {"skill": "Context Engineering", "source": "education", "detail": "Advanced AI/ML coursework and applied projects"},
+            {"skill": "Azure Open AI", "source": "experience", "detail": "Azure OpenAI service deployment and integration"},
+            {"skill": "Azure AI Search", "source": "experience", "detail": "AI-powered search index configuration and querying"},
+        ],
         "confidence": 0.75,
     }
