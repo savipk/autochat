@@ -63,6 +63,27 @@ def check_tool_called(
     )
 
 
+def check_tool_not_called(
+    messages: list,
+    excluded_tool: str,
+) -> ExpectationResult:
+    """Check that a specific tool was NOT called in the agent response."""
+    found_tools = _iter_tool_names(messages)
+
+    if excluded_tool not in found_tools:
+        return ExpectationResult(
+            passed=True,
+            check_name="tool_not_called",
+            details=f"Tool '{excluded_tool}' was correctly not called.",
+        )
+
+    return ExpectationResult(
+        passed=False,
+        check_name="tool_not_called",
+        details=f"Tool '{excluded_tool}' was called but should not have been. Found tools: {found_tools}",
+    )
+
+
 def check_response_contains(
     messages: list,
     expected_strings: list[str],
@@ -148,6 +169,9 @@ def evaluate_expectations(
 
     if "tool_called" in expectations:
         results.append(check_tool_called(messages, expectations["tool_called"]))
+
+    if "tool_not_called" in expectations:
+        results.append(check_tool_not_called(messages, expectations["tool_not_called"]))
 
     if "response_contains" in expectations:
         results.append(check_response_contains(messages, expectations["response_contains"]))

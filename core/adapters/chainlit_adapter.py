@@ -101,18 +101,24 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
             updated = tool_result.get("updated_fields", {})
             prev_score = tool_result.get("previous_completion_score", 0)
             new_score = tool_result.get("estimated_new_score", 0)
-            parts = [f"**Section updated:** {section}"]
-            for field_name, field_value in updated.items():
-                if isinstance(field_value, list):
-                    parts.append(f"- **{field_name}:** {', '.join(str(v) for v in field_value)}")
-                else:
-                    parts.append(f"- **{field_name}:** {field_value}")
-            if prev_score or new_score:
-                parts.append(f"\nCompletion score: {prev_score}% -> {new_score}% (estimated)")
-            elements.append(cl.Text(
-                name="profile_update",
-                content="\n".join(parts),
-                display="inline",
+
+            # Build payload for the action callbacks
+            payload = json.dumps({
+                "section": section,
+                "updates": updated,
+                "profile_path": tool_result.get("profile_path", ""),
+                "username": tool_result.get("username", ""),
+            })
+
+            elements.append(cl.CustomElement(
+                name="ProfileUpdateConfirmation",
+                props={
+                    "section": section,
+                    "updated_fields": updated,
+                    "previous_completion_score": prev_score,
+                    "estimated_new_score": new_score,
+                    "payload": payload,
+                },
             ))
 
     elif tool_name == "ask_jd_qa":

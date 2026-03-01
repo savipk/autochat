@@ -28,6 +28,8 @@ from core.adapters.chainlit_adapter import (
     render_tool_elements,
     extract_tool_calls_from_messages,
 )
+from core.profile_routes import router as profile_router, set_profile_updated
+from core.profile_manager import ProfileManager
 
 
 # ============================================================================
@@ -111,6 +113,10 @@ checkpointer = InMemorySaver()
 registry = build_agent_catalog(checkpointer=checkpointer)
 orchestrator = create_orchestrator_agent(registry, checkpointer=checkpointer)
 
+# Mount profile editor API routes on Chainlit's FastAPI app
+from chainlit.server import app as chainlit_app
+chainlit_app.include_router(profile_router)
+
 
 # ============================================================================
 # STARTERS
@@ -146,6 +152,15 @@ async def on_chat_start():
     """Initialize session — store the thread_id for context building."""
     cl.user_session.set("thread_id", cl.context.session.id)
 
+    # Emit user metadata so the side panel JS can read username + profile_path
+    user = cl.user_session.get("user")
+    if user and hasattr(user, "metadata") and user.metadata:
+        meta = {
+            "username": user.identifier,
+            "profile_path": user.metadata.get("profile_path", ""),
+        }
+        cl.user_session.set("profile_meta", meta)
+
 
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):
@@ -159,6 +174,57 @@ async def on_chat_resume(thread: ThreadDict):
 
     greeting = f"Welcome back, {first_name}!" if first_name else "Welcome back!"
     await cl.Message(content=f"{greeting} How can I help you today?").send()
+
+
+# ============================================================================
+# ACTION CALLBACKS — Human-in-the-loop for profile updates
+# ============================================================================
+
+@cl.action_callback("approve_profile_update")
+async def approve_profile_update(action: cl.Action):
+    """Accept a chat-agent-initiated profile change."""
+    payload = json.loads(action.payload) if isinstance(action.payload, str) else action.payload
+    section = payload.get("section", "")
+    updates = payload.get("updates", {})
+    profile_path = payload.get("profile_path", "")
+    username = payload.get("username", "")
+
+    if not profile_path or not username:
+        await cl.Message(content="Could not apply update — missing user context.").send()
+        return
+
+    mgr = ProfileManager(username=username, profile_path=profile_path)
+    profile = mgr.load_current()
+
+    # Apply the updates to the appropriate section
+    if section == "skills":
+        skills = profile.get("core", {}).get("skills", {})
+        if "topSkills" in updates:
+            skills["top"] = updates["topSkills"]
+        if "additionalSkills" in updates:
+            skills["additional"] = updates["additionalSkills"]
+        profile.setdefault("core", {})["skills"] = skills
+    else:
+        # Generic: merge updates into profile.core.<section>
+        profile.setdefault("core", {})[section] = updates
+
+    mgr.submit(profile)
+    set_profile_updated(username)
+
+    # Clear middleware cache
+    try:
+        from agents.mycareer.middleware import clear_profile_cache
+        clear_profile_cache()
+    except ImportError:
+        pass
+
+    await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
+
+
+@cl.action_callback("reject_profile_update")
+async def reject_profile_update(action: cl.Action):
+    """Decline a chat-agent-initiated profile change."""
+    await cl.Message(content="Profile update declined. No changes were made.").send()
 
 
 # ============================================================================

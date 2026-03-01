@@ -13,6 +13,18 @@ from core.middleware.user_identity import get_user_identity
 _thread_analysis: dict[str, int] = {}
 
 
+def clear_profile_cache(thread_id: str | None = None):
+    """Clear the first-touch analysis cache so the agent sees fresh profile data.
+
+    If *thread_id* is given, only that entry is removed. Otherwise, the
+    entire cache is flushed (used when the side panel submits).
+    """
+    if thread_id:
+        _thread_analysis.pop(thread_id, None)
+    else:
+        _thread_analysis.clear()
+
+
 def _get_context(request):
     """Extract context from request runtime (e.g. from ainvoke(..., context=...))."""
     return getattr(getattr(request, "runtime", None), "context", None)

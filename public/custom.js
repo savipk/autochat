@@ -1,0 +1,698 @@
+/**
+ * Profile Editor Side Panel
+ *
+ * Injects a persistent profile editor panel to the right of the Chainlit chat.
+ * Vanilla JS — no React dependency outside Chainlit's element system.
+ */
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------------
+  // Config & state
+  // ---------------------------------------------------------------------------
+  const PANEL_WIDTH = 400;
+  const POLL_INTERVAL_MS = 5000;
+
+  let _username = "";
+  let _profilePath = "";
+  let _originalProfile = null;   // snapshot of profile when loaded
+  let _currentProfile = null;    // live editor state
+  let _drafts = [];              // [{id, timestamp, label}]
+  let _draftIndex = -1;          // -1 = live profile (no draft selected)
+  let _panelEl = null;
+  let _pollTimer = null;
+
+  // ---------------------------------------------------------------------------
+  // Bootstrap — wait for Chainlit DOM, then inject panel
+  // ---------------------------------------------------------------------------
+  function waitForChat(cb) {
+    const observer = new MutationObserver(function () {
+      // Look for the main content area — Chainlit renders into #root
+      const root = document.getElementById("root");
+      if (!root) return;
+      // Wait until something meaningful renders inside root
+      if (root.querySelector("main") || root.querySelector("[class*='chat']")) {
+        observer.disconnect();
+        cb(root);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    // Also try immediately
+    const root = document.getElementById("root");
+    if (root && (root.querySelector("main") || root.querySelector("[class*='chat']"))) {
+      observer.disconnect();
+      cb(root);
+    }
+  }
+
+  waitForChat(function (root) {
+    extractUserContext(function () {
+      if (!_username || !_profilePath) return;
+      injectPanel(root);
+      loadProfile();
+      startPolling();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Extract user context
+  // ---------------------------------------------------------------------------
+  function extractUserContext(cb) {
+    // Try window.__chainlit__ first
+    if (window.__chainlit__ && window.__chainlit__.user) {
+      _username = window.__chainlit__.user.identifier || "";
+      _profilePath = (window.__chainlit__.user.metadata || {}).profile_path || "";
+      if (_username && _profilePath) { cb(); return; }
+    }
+
+    // Fallback: fetch from Chainlit's auth endpoint
+    fetch("/user", { credentials: "include" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (data) {
+          _username = data.identifier || data.username || "";
+          _profilePath = (data.metadata || {}).profile_path || "";
+        }
+        cb();
+      })
+      .catch(function () { cb(); });
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOM injection
+  // ---------------------------------------------------------------------------
+  function injectPanel(root) {
+    // Find the first child that holds the full-width layout
+    var mainChild = root.querySelector("main") || root.children[0];
+    if (!mainChild) return;
+
+    // Wrap existing content
+    var wrapper = document.createElement("div");
+    wrapper.className = "autochat-layout";
+
+    var chatWrap = document.createElement("div");
+    chatWrap.className = "autochat-chat";
+
+    // Move all root children into chatWrap
+    while (mainChild.parentNode === root && root.firstChild) {
+      chatWrap.appendChild(root.firstChild);
+    }
+    // If mainChild is nested, just move mainChild
+    if (chatWrap.childNodes.length === 0) {
+      var parent = mainChild.parentNode;
+      var siblings = Array.from(parent.children);
+      siblings.forEach(function (s) { chatWrap.appendChild(s); });
+      parent.appendChild(wrapper);
+    } else {
+      root.appendChild(wrapper);
+    }
+
+    wrapper.appendChild(chatWrap);
+
+    // Create panel
+    _panelEl = document.createElement("div");
+    _panelEl.className = "autochat-profile-panel";
+    _panelEl.innerHTML = '<div class="profile-panel-loading">Loading profile...</div>';
+    wrapper.appendChild(_panelEl);
+  }
+
+  // ---------------------------------------------------------------------------
+  // API helpers
+  // ---------------------------------------------------------------------------
+  function apiHeaders() {
+    return {
+      "Content-Type": "application/json",
+      "X-Username": _username,
+      "X-Profile-Path": _profilePath,
+    };
+  }
+
+  function loadProfile() {
+    fetch("/api/profile/current", { headers: apiHeaders(), credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _originalProfile = JSON.parse(JSON.stringify(data));
+        _currentProfile = JSON.parse(JSON.stringify(data));
+        _draftIndex = -1;
+        refreshDraftList(function () { renderPanel(); });
+      })
+      .catch(function () {
+        _panelEl.innerHTML = '<div class="profile-panel-loading">Failed to load profile.</div>';
+      });
+  }
+
+  function refreshDraftList(cb) {
+    fetch("/api/profile/drafts", { headers: apiHeaders(), credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (list) { _drafts = list || []; if (cb) cb(); })
+      .catch(function () { _drafts = []; if (cb) cb(); });
+  }
+
+  function saveDraft() {
+    fetch("/api/profile/drafts", {
+      method: "POST",
+      headers: apiHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ profile_data: _currentProfile, label: "" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        refreshDraftList(function () {
+          _draftIndex = _drafts.length - 1;
+          _originalProfile = JSON.parse(JSON.stringify(_currentProfile));
+          renderPanel();
+          showToast("Draft saved");
+        });
+      });
+  }
+
+  function submitProfile() {
+    fetch("/api/profile/submit", {
+      method: "POST",
+      headers: apiHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ profile_data: _currentProfile }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        showToast("Profile submitted!");
+        loadProfile();
+      });
+  }
+
+  function loadDraftById(draftId) {
+    fetch("/api/profile/drafts/" + encodeURIComponent(draftId), {
+      headers: apiHeaders(),
+      credentials: "include",
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _currentProfile = JSON.parse(JSON.stringify(data));
+        _originalProfile = JSON.parse(JSON.stringify(data));
+        renderPanel();
+      });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Polling for agent-initiated updates
+  // ---------------------------------------------------------------------------
+  function startPolling() {
+    _pollTimer = setInterval(function () {
+      fetch("/api/profile/poll-update", { headers: apiHeaders(), credentials: "include" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.updated) loadProfile();
+        })
+        .catch(function () {});
+    }, POLL_INTERVAL_MS);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render the full panel
+  // ---------------------------------------------------------------------------
+  function renderPanel() {
+    if (!_panelEl || !_currentProfile) return;
+
+    var core = _currentProfile.core || {};
+    var nameInfo = core.name || {};
+    var fullName = ((nameInfo.businessFirstName || "") + " " + (nameInfo.businessLastName || "")).trim();
+    var title = core.businessTitle || "";
+    var rank = (core.rank || {}).description || "";
+    var score = core.completionScore;
+
+    var html = '';
+
+    // Header
+    html += '<div class="profile-panel-header">';
+    html += '  <h2>Profile Editor</h2>';
+    if (typeof score === "number") {
+      html += '  <div class="profile-score-badge">' + score + '% complete</div>';
+    }
+    html += '</div>';
+
+    // Read-only name/title
+    html += '<div class="profile-readonly-info">';
+    html += '  <div class="info-name">' + esc(fullName || "—") + '</div>';
+    if (title) html += '  <div class="info-detail">' + esc(title) + '</div>';
+    if (rank) html += '  <div class="info-detail">' + esc(rank) + '</div>';
+    html += '</div>';
+
+    // Scrollable body
+    html += '<div class="profile-panel-body">';
+
+    // --- Experience ---
+    html += renderExperienceSection(core.experience);
+
+    // --- Education ---
+    html += renderEducationSection(core.qualification);
+
+    // --- Skills ---
+    html += renderSkillsSection(core);
+
+    // --- Career Aspirations ---
+    html += renderAspirationsSection(core.careerAspirationPreference);
+
+    // --- Location Preferences ---
+    html += renderLocationSection(core.careerLocationPreference);
+
+    // --- Role Preferences ---
+    html += renderRolesSection(core.careerRolePreference);
+
+    // --- Languages ---
+    html += renderLanguagesSection(core.language);
+
+    html += '</div>'; // end body
+
+    // Footer
+    html += renderFooter();
+
+    _panelEl.innerHTML = html;
+    attachEvents();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Section renderers
+  // ---------------------------------------------------------------------------
+
+  function renderExperienceSection(exp) {
+    var experiences = (exp || {}).experiences || [];
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Experience</div>';
+    experiences.forEach(function (e, i) {
+      h += '<div class="profile-group-item">';
+      h += '<div class="group-item-header">';
+      h += '<span class="group-item-title">' + esc(e.jobTitle || "Untitled") + '</span>';
+      h += '<button class="profile-group-remove" data-action="remove-experience" data-index="' + i + '" title="Remove">&times;</button>';
+      h += '</div>';
+      h += fieldInput("Job Title", "exp-title-" + i, e.jobTitle || "");
+      h += fieldInput("Company", "exp-company-" + i, e.company || "");
+      h += fieldInput("Start Date", "exp-start-" + i, e.startDate || "");
+      h += fieldTextarea("Description", "exp-desc-" + i, e.description || "");
+      h += '</div>';
+    });
+    h += '<button class="btn-save-draft" style="width:auto;padding:4px 12px;margin-top:4px" data-action="add-experience">+ Add Experience</button>';
+    h += '</div>';
+    return h;
+  }
+
+  function renderEducationSection(qual) {
+    var educations = (qual || {}).educations || [];
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Education</div>';
+    educations.forEach(function (e, i) {
+      h += '<div class="profile-group-item">';
+      h += '<div class="group-item-header">';
+      h += '<span class="group-item-title">' + esc(e.institutionName || "Untitled") + '</span>';
+      h += '<button class="profile-group-remove" data-action="remove-education" data-index="' + i + '" title="Remove">&times;</button>';
+      h += '</div>';
+      h += fieldInput("Institution", "edu-inst-" + i, e.institutionName || "");
+      h += fieldInput("Degree", "edu-degree-" + i, e.degree || "");
+      h += fieldInput("Area of Study", "edu-area-" + i, e.areaOfStudy || "");
+      h += fieldInput("Year", "edu-year-" + i, e.completionYear || "");
+      h += '</div>';
+    });
+    h += '<button class="btn-save-draft" style="width:auto;padding:4px 12px;margin-top:4px" data-action="add-education">+ Add Education</button>';
+    h += '</div>';
+    return h;
+  }
+
+  function renderSkillsSection(core) {
+    var skills = core.skills || {};
+    var top = skills.top || [];
+    var additional = skills.additional || [];
+
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Skills</div>';
+
+    h += '<label style="font-size:12px;font-weight:500;color:#374151;margin-bottom:4px;display:block">Top Skills</label>';
+    h += '<div class="profile-tags" id="tags-top-skills">';
+    top.forEach(function (s, i) {
+      h += '<span class="profile-tag">' + esc(s) + '<span class="tag-remove" data-action="remove-top-skill" data-index="' + i + '">&times;</span></span>';
+    });
+    h += '</div>';
+    h += '<div class="profile-add-row"><input id="add-top-skill-input" placeholder="Add skill..." /><button data-action="add-top-skill">Add</button></div>';
+
+    h += '<label style="font-size:12px;font-weight:500;color:#374151;margin:10px 0 4px;display:block">Additional Skills</label>';
+    h += '<div class="profile-tags" id="tags-additional-skills">';
+    additional.forEach(function (s, i) {
+      h += '<span class="profile-tag">' + esc(s) + '<span class="tag-remove" data-action="remove-additional-skill" data-index="' + i + '">&times;</span></span>';
+    });
+    h += '</div>';
+    h += '<div class="profile-add-row"><input id="add-additional-skill-input" placeholder="Add skill..." /><button data-action="add-additional-skill">Add</button></div>';
+
+    h += '<p class="profile-hint">You can ask the chat agent to infer skills from your profile</p>';
+    h += '</div>';
+    return h;
+  }
+
+  function renderAspirationsSection(pref) {
+    var aspirations = (pref || {}).preferredAspirations || [];
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Career Aspirations</div>';
+    h += '<div class="profile-tags" id="tags-aspirations">';
+    aspirations.forEach(function (a, i) {
+      h += '<span class="profile-tag">' + esc(a.description || "") + '<span class="tag-remove" data-action="remove-aspiration" data-index="' + i + '">&times;</span></span>';
+    });
+    h += '</div>';
+    h += '<div class="profile-add-row"><input id="add-aspiration-input" placeholder="Add aspiration..." /><button data-action="add-aspiration">Add</button></div>';
+    h += '</div>';
+    return h;
+  }
+
+  function renderLocationSection(locPref) {
+    if (!locPref) locPref = {};
+    var timeline = (locPref.preferredRelocationTimeline || {}).description || "";
+    var regions = locPref.preferredRelocationRegions || [];
+
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Location Preferences</div>';
+    h += fieldInput("Relocation Timeline", "loc-timeline", timeline);
+    h += '<label style="font-size:12px;font-weight:500;color:#374151;margin-bottom:4px;display:block">Preferred Regions</label>';
+    h += '<div class="profile-tags" id="tags-regions">';
+    regions.forEach(function (r, i) {
+      h += '<span class="profile-tag">' + esc(r.description || "") + '<span class="tag-remove" data-action="remove-region" data-index="' + i + '">&times;</span></span>';
+    });
+    h += '</div>';
+    h += '<div class="profile-add-row"><input id="add-region-input" placeholder="Add region..." /><button data-action="add-region">Add</button></div>';
+    h += '</div>';
+    return h;
+  }
+
+  function renderRolesSection(rolePref) {
+    var roles = ((rolePref || {}).preferredRoles) || [];
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Role Preferences</div>';
+    roles.forEach(function (r) {
+      var rc = r.roleClassification || {};
+      h += '<div class="profile-group-item">';
+      h += '<div class="group-item-title">' + esc(rc.description || "—") + '</div>';
+      (rc.children || []).forEach(function (c) {
+        h += '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(c.description || "") + '</div>';
+      });
+      h += '</div>';
+    });
+    h += '</div>';
+    return h;
+  }
+
+  function renderLanguagesSection(lang) {
+    var languages = (lang || {}).languages || [];
+    var proficiencyOptions = ["Native", "Fluent", "Intermediate", "Basic"];
+
+    var h = '<div class="profile-section">';
+    h += '<div class="profile-section-title">Languages</div>';
+    languages.forEach(function (l, i) {
+      var langName = (l.language || {}).description || "";
+      var profDesc = (l.proficiency || {}).description || "";
+      h += '<div class="profile-group-item" style="display:flex;gap:8px;align-items:center">';
+      h += '<div style="flex:1">' + fieldInput("Language", "lang-name-" + i, langName) + '</div>';
+      h += '<div style="flex:1"><div class="profile-field"><label>Proficiency</label><select id="lang-prof-' + i + '">';
+      proficiencyOptions.forEach(function (opt) {
+        h += '<option value="' + opt.toUpperCase() + '"' + (profDesc === opt ? ' selected' : '') + '>' + opt + '</option>';
+      });
+      h += '</select></div></div>';
+      h += '<button class="profile-group-remove" data-action="remove-language" data-index="' + i + '" title="Remove">&times;</button>';
+      h += '</div>';
+    });
+    h += '<button class="btn-save-draft" style="width:auto;padding:4px 12px;margin-top:4px" data-action="add-language">+ Add Language</button>';
+    h += '</div>';
+    return h;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Footer: draft nav + save/submit buttons
+  // ---------------------------------------------------------------------------
+  function renderFooter() {
+    var h = '<div class="profile-panel-footer">';
+
+    // Draft navigation
+    if (_drafts.length > 0) {
+      var draftLabel = "";
+      if (_draftIndex >= 0 && _draftIndex < _drafts.length) {
+        var d = _drafts[_draftIndex];
+        var ts = d.timestamp || "";
+        draftLabel = "Draft " + (_draftIndex + 1) + " of " + _drafts.length;
+        if (ts) draftLabel += " (" + formatTimestamp(ts) + ")";
+      } else {
+        draftLabel = "Live profile";
+      }
+      h += '<div class="draft-nav">';
+      h += '<button data-action="draft-prev"' + (_draftIndex <= 0 ? ' disabled' : '') + '>&laquo;</button>';
+      h += '<span>' + draftLabel + '</span>';
+      h += '<button data-action="draft-next"' + (_draftIndex >= _drafts.length - 1 ? ' disabled' : '') + '>&raquo;</button>';
+      h += '</div>';
+    }
+
+    h += '<div class="profile-panel-actions">';
+    h += '<button class="btn-save-draft" data-action="save-draft">Save Draft</button>';
+    h += '<button class="btn-submit" data-action="submit-profile">Submit</button>';
+    h += '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Event attachment (delegated)
+  // ---------------------------------------------------------------------------
+  function attachEvents() {
+    if (!_panelEl) return;
+
+    _panelEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var idx = parseInt(btn.getAttribute("data-index"), 10);
+
+      switch (action) {
+        case "save-draft": saveDraft(); break;
+        case "submit-profile":
+          collectFormData();
+          submitProfile();
+          break;
+        case "draft-prev":
+          if (_draftIndex > 0) { _draftIndex--; loadDraftById(_drafts[_draftIndex].id); }
+          break;
+        case "draft-next":
+          if (_draftIndex < _drafts.length - 1) { _draftIndex++; loadDraftById(_drafts[_draftIndex].id); }
+          break;
+
+        // Skills
+        case "remove-top-skill":
+          collectFormData();
+          (_currentProfile.core.skills.top || []).splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-top-skill":
+          collectFormData();
+          var v1 = (document.getElementById("add-top-skill-input") || {}).value || "";
+          if (v1.trim()) {
+            _currentProfile.core = _currentProfile.core || {};
+            _currentProfile.core.skills = _currentProfile.core.skills || {};
+            _currentProfile.core.skills.top = _currentProfile.core.skills.top || [];
+            _currentProfile.core.skills.top.push(v1.trim());
+            renderPanel();
+          }
+          break;
+        case "remove-additional-skill":
+          collectFormData();
+          (_currentProfile.core.skills.additional || []).splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-additional-skill":
+          var v2 = (document.getElementById("add-additional-skill-input") || {}).value || "";
+          if (v2.trim()) {
+            collectFormData();
+            _currentProfile.core = _currentProfile.core || {};
+            _currentProfile.core.skills = _currentProfile.core.skills || {};
+            _currentProfile.core.skills.additional = _currentProfile.core.skills.additional || [];
+            _currentProfile.core.skills.additional.push(v2.trim());
+            renderPanel();
+          }
+          break;
+
+        // Aspirations
+        case "remove-aspiration":
+          collectFormData();
+          var asp = ((_currentProfile.core || {}).careerAspirationPreference || {}).preferredAspirations || [];
+          asp.splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-aspiration":
+          var v3 = (document.getElementById("add-aspiration-input") || {}).value || "";
+          if (v3.trim()) {
+            collectFormData();
+            _currentProfile.core = _currentProfile.core || {};
+            _currentProfile.core.careerAspirationPreference = _currentProfile.core.careerAspirationPreference || {};
+            _currentProfile.core.careerAspirationPreference.preferredAspirations = _currentProfile.core.careerAspirationPreference.preferredAspirations || [];
+            _currentProfile.core.careerAspirationPreference.preferredAspirations.push({
+              type: "SimpleReferenceDataDto", code: "", description: v3.trim(),
+            });
+            renderPanel();
+          }
+          break;
+
+        // Regions
+        case "remove-region":
+          collectFormData();
+          var regs = ((_currentProfile.core || {}).careerLocationPreference || {}).preferredRelocationRegions || [];
+          regs.splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-region":
+          var v4 = (document.getElementById("add-region-input") || {}).value || "";
+          if (v4.trim()) {
+            collectFormData();
+            _currentProfile.core = _currentProfile.core || {};
+            _currentProfile.core.careerLocationPreference = _currentProfile.core.careerLocationPreference || {};
+            _currentProfile.core.careerLocationPreference.preferredRelocationRegions = _currentProfile.core.careerLocationPreference.preferredRelocationRegions || [];
+            _currentProfile.core.careerLocationPreference.preferredRelocationRegions.push({
+              type: "SimpleReferenceDataDto", code: "", description: v4.trim(),
+            });
+            renderPanel();
+          }
+          break;
+
+        // Experience
+        case "remove-experience":
+          collectFormData();
+          ((_currentProfile.core || {}).experience || {}).experiences.splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-experience":
+          collectFormData();
+          _currentProfile.core = _currentProfile.core || {};
+          _currentProfile.core.experience = _currentProfile.core.experience || {};
+          _currentProfile.core.experience.experiences = _currentProfile.core.experience.experiences || [];
+          _currentProfile.core.experience.experiences.push({
+            id: crypto.randomUUID(), jobTitle: "", company: "", startDate: "", description: "",
+          });
+          renderPanel();
+          break;
+
+        // Education
+        case "remove-education":
+          collectFormData();
+          ((_currentProfile.core || {}).qualification || {}).educations.splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-education":
+          collectFormData();
+          _currentProfile.core = _currentProfile.core || {};
+          _currentProfile.core.qualification = _currentProfile.core.qualification || {};
+          _currentProfile.core.qualification.educations = _currentProfile.core.qualification.educations || [];
+          _currentProfile.core.qualification.educations.push({
+            id: crypto.randomUUID(), institutionName: "", degree: "", areaOfStudy: "", completionYear: 0,
+          });
+          renderPanel();
+          break;
+
+        // Languages
+        case "remove-language":
+          collectFormData();
+          ((_currentProfile.core || {}).language || {}).languages.splice(idx, 1);
+          renderPanel();
+          break;
+        case "add-language":
+          collectFormData();
+          _currentProfile.core = _currentProfile.core || {};
+          _currentProfile.core.language = _currentProfile.core.language || {};
+          _currentProfile.core.language.languages = _currentProfile.core.language.languages || [];
+          _currentProfile.core.language.languages.push({
+            id: crypto.randomUUID(),
+            language: { type: "SimpleReferenceDataDto", code: "", description: "" },
+            proficiency: { type: "SimpleReferenceDataDto", code: "BASIC", description: "Basic" },
+          });
+          renderPanel();
+          break;
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Collect form data back into _currentProfile
+  // ---------------------------------------------------------------------------
+  function collectFormData() {
+    if (!_currentProfile || !_panelEl) return;
+    var core = _currentProfile.core || {};
+
+    // Experience
+    var exps = ((core.experience || {}).experiences) || [];
+    exps.forEach(function (e, i) {
+      e.jobTitle = val("exp-title-" + i) || e.jobTitle;
+      e.company = val("exp-company-" + i) || e.company;
+      e.startDate = val("exp-start-" + i) || e.startDate;
+      e.description = val("exp-desc-" + i) || e.description;
+    });
+
+    // Education
+    var edus = ((core.qualification || {}).educations) || [];
+    edus.forEach(function (e, i) {
+      e.institutionName = val("edu-inst-" + i) || e.institutionName;
+      e.degree = val("edu-degree-" + i) || e.degree;
+      e.areaOfStudy = val("edu-area-" + i) || e.areaOfStudy;
+      var yr = val("edu-year-" + i);
+      if (yr !== null) e.completionYear = parseInt(yr, 10) || 0;
+    });
+
+    // Languages
+    var langs = ((core.language || {}).languages) || [];
+    langs.forEach(function (l, i) {
+      var n = val("lang-name-" + i);
+      if (n !== null && l.language) l.language.description = n;
+      var p = val("lang-prof-" + i);
+      if (p !== null && l.proficiency) {
+        l.proficiency.code = p;
+        l.proficiency.description = p.charAt(0) + p.slice(1).toLowerCase();
+      }
+    });
+
+    // Location timeline
+    var tl = val("loc-timeline");
+    if (tl !== null) {
+      core.careerLocationPreference = core.careerLocationPreference || {};
+      core.careerLocationPreference.preferredRelocationTimeline = core.careerLocationPreference.preferredRelocationTimeline || {};
+      core.careerLocationPreference.preferredRelocationTimeline.description = tl;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Utilities
+  // ---------------------------------------------------------------------------
+  function val(id) {
+    var el = document.getElementById(id);
+    return el ? el.value : null;
+  }
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function fieldInput(label, id, value) {
+    return '<div class="profile-field"><label>' + esc(label) + '</label><input id="' + id + '" value="' + esc(value) + '" /></div>';
+  }
+
+  function fieldTextarea(label, id, value) {
+    return '<div class="profile-field"><label>' + esc(label) + '</label><textarea id="' + id + '">' + esc(value) + '</textarea></div>';
+  }
+
+  function formatTimestamp(ts) {
+    // ts = "20260301T143000Z"
+    if (!ts || ts.length < 13) return ts;
+    var m = ts.substring(4, 6);
+    var d = ts.substring(6, 8);
+    var h = ts.substring(9, 11);
+    var min = ts.substring(11, 13);
+    return m + "/" + d + " " + h + ":" + min;
+  }
+
+  function showToast(msg) {
+    var t = document.createElement("div");
+    t.className = "profile-toast";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2600);
+  }
+
+})();

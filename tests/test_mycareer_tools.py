@@ -59,9 +59,21 @@ class TestUpdateProfile:
         assert "A2A" in result["updated_fields"]["topSkills"]
 
     def test_unsupported_section(self):
-        result = self._run(section="experience")
+        result = self._run(section="bogus_section")
         assert result["success"] is False
         assert "not yet supported" in result["error"]
+
+    def test_experience_section_supported(self):
+        updates = {"experiences": [{"jobTitle": "Engineer", "company": "Acme"}]}
+        result = self._run(section="experience", updates=updates)
+        assert result["success"] is True
+        assert result["section"] == "experience"
+
+    def test_language_section_supported(self):
+        updates = {"languages": [{"language": {"description": "German"}, "proficiency": {"description": "Native"}}]}
+        result = self._run(section="language", updates=updates)
+        assert result["success"] is True
+        assert result["section"] == "language"
 
     def test_update_skills_with_specific_list(self):
         skills = ["Python", "Docker", "Kubernetes", "Terraform", "Go"]

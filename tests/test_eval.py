@@ -8,6 +8,7 @@ import pytest
 from core.eval.runner import load_scenario, EvalRunner, ScenarioResult
 from core.eval.expectations import (
     check_tool_called,
+    check_tool_not_called,
     check_response_contains,
     check_success,
     evaluate_expectations,
@@ -37,6 +38,22 @@ class TestExpectations:
             MockMessage(msg_type="ai", tool_calls=[{"name": "infer_skills"}]),
         ]
         result = check_tool_called(messages, "get_matches")
+        assert result.passed is False
+
+    def test_check_tool_not_called_pass(self):
+        messages = [
+            MockMessage(msg_type="ai", tool_calls=[{"name": "update_profile"}]),
+            MockMessage(content='{"success": true}', msg_type="tool", name="update_profile"),
+        ]
+        result = check_tool_not_called(messages, "infer_skills")
+        assert result.passed is True
+
+    def test_check_tool_not_called_fail(self):
+        messages = [
+            MockMessage(msg_type="ai", tool_calls=[{"name": "infer_skills"}]),
+            MockMessage(content='{"success": true}', msg_type="tool", name="infer_skills"),
+        ]
+        result = check_tool_not_called(messages, "infer_skills")
         assert result.passed is False
 
     def test_check_response_contains_pass(self):
@@ -94,6 +111,17 @@ class TestLoadScenario:
         assert len(scenario["turns"]) == 8
         assert scenario["turns"][0]["user"] == "Suggest skills"
         assert scenario["turns"][0]["expectations"]["tool_called"] == "infer_skills"
+
+    def test_load_skills_flow(self):
+        path = os.path.join(
+            os.path.dirname(__file__), "..", "eval", "scenarios", "mycareer_skills_flow.json"
+        )
+        scenario = load_scenario(path)
+        assert scenario["name"] == "mycareer_skills_flow"
+        assert len(scenario["turns"]) == 6
+        assert scenario["turns"][0]["expectations"]["tool_called"] == "infer_skills"
+        assert scenario["turns"][2]["expectations"]["tool_not_called"] == "infer_skills"
+        assert scenario["turns"][4]["expectations"]["tool_not_called"] == "infer_skills"
 
 
 class TestScenarioResult:
