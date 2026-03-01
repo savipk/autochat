@@ -128,15 +128,18 @@ async def profile_events(username: str = Query(...)):
     queue: asyncio.Queue = asyncio.Queue()
     _sse_queues.setdefault(username, []).append(queue)
 
+    logger.info("SSE /events connected for username=%s, total queues for user=%d",
+                username, len(_sse_queues.get(username, [])))
+
     async def _generator():
         try:
-            # Send an initial keepalive so the connection is established
             yield ": connected\n\n"
             while True:
                 event = await queue.get()
+                logger.info("SSE yielding event for username=%s: %s", username, event)
                 yield f"data: {json.dumps(event)}\n\n"
         except asyncio.CancelledError:
-            pass
+            logger.info("SSE connection cancelled for username=%s", username)
         finally:
             queues = _sse_queues.get(username, [])
             if queue in queues:
@@ -179,6 +182,8 @@ async def whoami(x_username: str = Header(...)):
 def push_panel_event(username: str, event_type: str = "open_panel"):
     """Push an SSE event to all connected clients for this user."""
     queues = _sse_queues.get(username, [])
+    logger.info("push_panel_event: username=%s event=%s queues=%d all_keys=%s",
+                username, event_type, len(queues), list(_sse_queues.keys()))
     for q in queues:
         q.put_nowait({"type": event_type})
 

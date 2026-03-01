@@ -111,22 +111,26 @@ console.log("[profile-panel] custom.js loaded at", new Date().toISOString());
     if (_eventSource) _eventSource.close();
 
     var url = "/api/profile/events?username=" + encodeURIComponent(_username);
+    console.log("[profile-panel] Opening EventSource:", url);
     _eventSource = new EventSource(url);
 
+    _eventSource.onopen = function () {
+      console.log("[profile-panel] SSE onopen — readyState:", _eventSource.readyState);
+    };
+
     _eventSource.onmessage = function (e) {
+      console.log("[profile-panel] SSE onmessage raw:", e.data);
       try {
         var event = JSON.parse(e.data);
         handleSSEEvent(event);
       } catch (err) {
-        // ignore parse errors (e.g. keepalive comments)
+        console.warn("[profile-panel] SSE parse error:", err, "data:", e.data);
       }
     };
 
-    _eventSource.onerror = function () {
-      console.warn("[profile-panel] SSE connection error — will auto-reconnect");
+    _eventSource.onerror = function (e) {
+      console.warn("[profile-panel] SSE onerror — readyState:", _eventSource.readyState, e);
     };
-
-    console.log("[profile-panel] SSE connected for user:", _username);
   }
 
   function handleSSEEvent(event) {
