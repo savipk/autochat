@@ -216,7 +216,7 @@ async def render_interrupt_elements(
         value = intr.get("value", {})
         action_requests = value.get("action_requests", [])
         for req in action_requests:
-            tool_name = req.get("action", "")
+            tool_name = req.get("name", "")
             args = req.get("args", {})
             if tool_name != "update_profile":
                 continue
