@@ -69,13 +69,20 @@ def _create_worker_agent(agent: BaseAgent, name: str, description: str, context_
                         "ns": intr.ns if hasattr(intr, "ns") else None,
                     })
             if pending_interrupts:
-                # Extract the agent's last AI message (its proposal text) so
-                # the orchestrator can relay it instead of inventing its own.
-                agent_response = ""
+                # Extract the agent's AI response from the CURRENT TURN only.
+                # The checkpointer loads full history, so we must slice from the
+                # last HumanMessage to avoid picking up old turn responses.
                 msgs = result.get("messages", [])
-                for msg in reversed(msgs):
-                    if hasattr(msg, "type") and msg.type == "ai":
-                        content = getattr(msg, "content", "")
+                turn_start = 0
+                for i, m in enumerate(msgs):
+                    if hasattr(m, "type") and m.type == "human":
+                        turn_start = i
+                current_turn = msgs[turn_start:]
+
+                agent_response = ""
+                for m in reversed(current_turn):
+                    if hasattr(m, "type") and m.type == "ai":
+                        content = getattr(m, "content", "")
                         if content:
                             agent_response = content
                             break
