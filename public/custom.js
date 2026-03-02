@@ -72,6 +72,7 @@
   // ---------------------------------------------------------------------------
   function openPanel() {
     if (_panelOpen) return;
+    closeJdEditorPanel();
     _panelOpen = true;
     _panelEl.classList.add("open");
     document.getElementById("root").classList.add("autochat-panel-open");
@@ -113,13 +114,21 @@
   function handleSSEEvent(event) {
     if (event.type === "open_panel") {
       closeJdPanel();
+      closeJdEditorPanel();
       try { openPanel(); } catch (e) { /* ensure loadProfile still runs */ }
       loadProfile();
     } else if (event.type === "refresh") {
       loadProfile();
     } else if (event.type === "open_jd_panel") {
       closePanel();
+      closeJdEditorPanel();
       openJdPanel(event.job_id, event.job);
+    } else if (event.type === "open_jd_editor") {
+      closePanel();
+      closeJdPanel();
+      openJdEditorPanel();
+    } else if (event.type === "refresh_jd_editor") {
+      refreshJdEditorFromServer();
     }
   }
 
@@ -722,6 +731,7 @@
 
   function openJdPanel(jobId, jobData) {
     if (!_jdPanelEl) createJdPanel();
+    closeJdEditorPanel();
     var newId = jobId || "";
     // If already open for the same job, don't re-render
     if (_jdPanelOpen && newId === _currentJobId) return;
@@ -900,6 +910,283 @@
         case "ask-question":
           if (window.sendUserMessage) {
             window.sendUserMessage("I have a question about the " + jobTitle + " role (" + jobId + ")");
+          }
+          break;
+      }
+    });
+  }
+
+  // ===========================================================================
+  // JD Editor Side Panel (editable draft editor with version navigation)
+  // ===========================================================================
+  var _jdEditorPanelEl = null;
+  var _jdEditorPanelOpen = false;
+  var _jdEditorDrafts = [];
+  var _jdEditorDraftIndex = -1;
+  var _currentJdDraft = null;
+
+  function createJdEditorPanel() {
+    _jdEditorPanelEl = document.createElement("div");
+    _jdEditorPanelEl.className = "autochat-jd-editor-panel";
+    _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">Loading JD draft...</div>';
+    document.body.appendChild(_jdEditorPanelEl);
+  }
+
+  function jdApiHeaders() {
+    return {
+      "Content-Type": "application/json",
+      "X-Username": _username,
+    };
+  }
+
+  function openJdEditorPanel(draftId, jdData) {
+    if (!_jdEditorPanelEl) createJdEditorPanel();
+    closePanel();
+    closeJdPanel();
+    _jdEditorPanelOpen = true;
+    _jdEditorPanelEl.classList.add("open");
+    document.getElementById("root").classList.add("autochat-jd-editor-panel-open");
+
+    if (jdData && typeof jdData === "object" && jdData.sections) {
+      _currentJdDraft = JSON.parse(JSON.stringify(jdData));
+      _jdEditorDraftIndex = -1;
+      refreshJdEditorDraftList(function () {
+        _jdEditorDraftIndex = _jdEditorDrafts.length - 1;
+        renderJdEditorPanel();
+      });
+    } else {
+      // Load latest from server
+      loadLatestJdDraft();
+    }
+  }
+
+  function closeJdEditorPanel() {
+    if (!_jdEditorPanelOpen || !_jdEditorPanelEl) return;
+    _jdEditorPanelOpen = false;
+    _jdEditorPanelEl.classList.remove("open");
+    document.getElementById("root").classList.remove("autochat-jd-editor-panel-open");
+  }
+
+  function loadLatestJdDraft() {
+    fetch("/api/jd/latest", { headers: jdApiHeaders(), credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.sections) {
+          if (_jdEditorPanelEl) _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">No JD draft found.</div>';
+          return;
+        }
+        _currentJdDraft = JSON.parse(JSON.stringify(data));
+        refreshJdEditorDraftList(function () {
+          _jdEditorDraftIndex = _jdEditorDrafts.length - 1;
+          renderJdEditorPanel();
+        });
+      })
+      .catch(function () {
+        if (_jdEditorPanelEl) _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">Failed to load JD draft.</div>';
+      });
+  }
+
+  function refreshJdEditorFromServer() {
+    // Called on SSE refresh_jd_editor — reload latest draft if panel is open
+    if (!_jdEditorPanelOpen) return;
+    loadLatestJdDraft();
+  }
+
+  function refreshJdEditorDraftList(cb) {
+    fetch("/api/jd/drafts", { headers: jdApiHeaders(), credentials: "include" })
+      .then(function (r) { return r.json(); })
+      .then(function (list) { _jdEditorDrafts = list || []; if (cb) cb(); })
+      .catch(function () { _jdEditorDrafts = []; if (cb) cb(); });
+  }
+
+  function loadJdDraftById(draftId) {
+    fetch("/api/jd/drafts/" + encodeURIComponent(draftId), {
+      headers: jdApiHeaders(),
+      credentials: "include",
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _currentJdDraft = JSON.parse(JSON.stringify(data));
+        renderJdEditorPanel();
+      });
+  }
+
+  function collectJdFormData() {
+    if (!_currentJdDraft || !_jdEditorPanelEl) return;
+    var sections = _currentJdDraft.sections || {};
+    var el;
+    el = document.getElementById("jd-editor-your-team");
+    if (el) sections.your_team = el.value;
+    el = document.getElementById("jd-editor-your-role");
+    if (el) sections.your_role = el.value;
+    el = document.getElementById("jd-editor-your-expertise");
+    if (el) sections.your_expertise = el.value;
+    _currentJdDraft.sections = sections;
+  }
+
+  function saveJdDraft() {
+    collectJdFormData();
+    var payload = JSON.parse(JSON.stringify(_currentJdDraft));
+    delete payload._meta;
+    fetch("/api/jd/drafts", {
+      method: "POST",
+      headers: jdApiHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ jd_data: payload, label: "" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        refreshJdEditorDraftList(function () {
+          _jdEditorDraftIndex = _jdEditorDrafts.length - 1;
+          renderJdEditorPanel();
+          showToast("JD draft saved");
+        });
+      });
+  }
+
+  function submitJdDraft() {
+    collectJdFormData();
+    // Save current edits first, then finalize
+    var payload = JSON.parse(JSON.stringify(_currentJdDraft));
+    delete payload._meta;
+    fetch("/api/jd/drafts", {
+      method: "POST",
+      headers: jdApiHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ jd_data: payload, label: "" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function () {
+        return fetch("/api/jd/submit", {
+          method: "POST",
+          headers: jdApiHeaders(),
+          credentials: "include",
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          showToast("JD submitted!");
+          loadLatestJdDraft();
+        } else {
+          showToast("Submit failed: " + (data.error || "Unknown error"));
+        }
+      });
+  }
+
+  function renderJdEditorPanel() {
+    if (!_jdEditorPanelEl || !_currentJdDraft) return;
+
+    var title = _currentJdDraft.title || "Untitled JD";
+    var department = _currentJdDraft.department || "";
+    var level = _currentJdDraft.level || "";
+    var sections = _currentJdDraft.sections || {};
+    var meta = _currentJdDraft._meta || {};
+    var isFinalized = meta.finalized === true;
+
+    var html = '';
+
+    // Header
+    html += '<div class="profile-panel-header">';
+    html += '  <div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '    <h2 style="margin:0;font-size:16px;font-weight:600;color:#1f2937">JD Editor</h2>';
+    html += '    <button class="profile-panel-close" data-jd-editor-action="close" title="Close">&times;</button>';
+    html += '  </div>';
+    if (isFinalized) {
+      html += '  <div class="profile-score-badge" style="background:#d1fae5;color:#065f46">Finalized</div>';
+    }
+    html += '</div>';
+
+    // Title / dept / level
+    html += '<div class="profile-readonly-info">';
+    html += '  <div class="info-name">' + esc(title) + '</div>';
+    if (department) html += '  <div class="info-detail">' + esc(department) + (level ? ' — ' + esc(level) : '') + '</div>';
+    html += '</div>';
+
+    // Scrollable body with textareas
+    html += '<div class="profile-panel-body">';
+
+    html += '<div class="profile-section">';
+    html += '<div class="profile-section-title">Your Team</div>';
+    html += '<textarea id="jd-editor-your-team" class="jd-editor-textarea"' + (isFinalized ? ' readonly' : '') + '>' + esc(sections.your_team || '') + '</textarea>';
+    html += '</div>';
+
+    html += '<div class="profile-section">';
+    html += '<div class="profile-section-title">Your Role</div>';
+    html += '<textarea id="jd-editor-your-role" class="jd-editor-textarea"' + (isFinalized ? ' readonly' : '') + '>' + esc(sections.your_role || '') + '</textarea>';
+    html += '</div>';
+
+    html += '<div class="profile-section">';
+    html += '<div class="profile-section-title">Your Expertise</div>';
+    html += '<textarea id="jd-editor-your-expertise" class="jd-editor-textarea"' + (isFinalized ? ' readonly' : '') + '>' + esc(sections.your_expertise || '') + '</textarea>';
+    html += '</div>';
+
+    html += '</div>'; // end body
+
+    // Footer
+    html += '<div class="profile-panel-footer">';
+
+    if (_jdEditorDrafts.length > 0) {
+      var draftLabel = "";
+      if (_jdEditorDraftIndex >= 0 && _jdEditorDraftIndex < _jdEditorDrafts.length) {
+        var d = _jdEditorDrafts[_jdEditorDraftIndex];
+        var ts = d.timestamp || "";
+        draftLabel = "Version " + (_jdEditorDraftIndex + 1) + " of " + _jdEditorDrafts.length;
+        if (ts) draftLabel += " (" + formatTimestamp(ts) + ")";
+      } else {
+        draftLabel = "Latest draft";
+      }
+      html += '<div class="draft-nav">';
+      html += '<button data-jd-editor-action="draft-prev"' + (_jdEditorDraftIndex <= 0 ? ' disabled' : '') + '>&laquo;</button>';
+      html += '<span>' + draftLabel + '</span>';
+      html += '<button data-jd-editor-action="draft-next"' + (_jdEditorDraftIndex >= _jdEditorDrafts.length - 1 ? ' disabled' : '') + '>&raquo;</button>';
+      html += '</div>';
+    }
+
+    html += '<div class="profile-panel-actions">';
+    if (!isFinalized) {
+      html += '<button class="btn-save-draft" data-jd-editor-action="save-draft">Save Draft</button>';
+      html += '<button class="btn-submit" data-jd-editor-action="submit">Submit</button>';
+    } else {
+      html += '<button class="btn-submit" style="background:#464775;cursor:default;flex:1" disabled>Submitted</button>';
+    }
+    html += '</div>';
+
+    html += '</div>'; // end footer
+
+    _jdEditorPanelEl.innerHTML = html;
+    attachJdEditorEvents();
+  }
+
+  function attachJdEditorEvents() {
+    if (!_jdEditorPanelEl) return;
+    _jdEditorPanelEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-jd-editor-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-jd-editor-action");
+
+      switch (action) {
+        case "close":
+          closeJdEditorPanel();
+          break;
+        case "save-draft":
+          saveJdDraft();
+          break;
+        case "submit":
+          submitJdDraft();
+          break;
+        case "draft-prev":
+          if (_jdEditorDraftIndex > 0) {
+            collectJdFormData();
+            _jdEditorDraftIndex--;
+            loadJdDraftById(_jdEditorDrafts[_jdEditorDraftIndex].id);
+          }
+          break;
+        case "draft-next":
+          if (_jdEditorDraftIndex < _jdEditorDrafts.length - 1) {
+            collectJdFormData();
+            _jdEditorDraftIndex++;
+            loadJdDraftById(_jdEditorDrafts[_jdEditorDraftIndex].id);
           }
           break;
       }

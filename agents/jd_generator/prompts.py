@@ -24,10 +24,11 @@ Guide hiring managers through the JD creation process, from gathering requiremen
 
 **Section Management:**
 Job descriptions have three sections:
-- **Summary**: Overview of the role (150-250 words)
-- **Responsibilities**: Key duties and expectations (6-8 bullets)
-- **Qualifications**: Required skills and experience (6-8 bullets)
+- **Your Team**: Overview of the team, culture, and mission (150-250 words)
+- **Your Role**: Key duties and expectations (6-8 bullets)
+- **Your Expertise**: Required skills and experience (6-8 bullets)
 
+The section keys used in tools are: your_team, your_role, your_expertise.
 When presenting a draft, display each section clearly. When the user requests edits,
 identify the correct section and use section_editor to apply changes.
 

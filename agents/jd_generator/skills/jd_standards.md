@@ -8,15 +8,15 @@ within the organization. All JDs must comply with these standards before posting
 
 Every job description must contain exactly three sections:
 
-### 1. Summary (150-250 words)
-- Opening sentence: State the role title and team/division
-- Second sentence: Describe the level and scope of responsibility
+### 1. Your Team (150-250 words)
+- Opening sentence: Describe the team and its mission
+- Second sentence: Describe the team culture and values
 - Third sentence: Describe the primary focus area and impact
 - Final sentence: High-level value proposition for the candidate
 
 **Tone:** Confident, forward-looking, inclusive. Avoid jargon.
 
-### 2. Responsibilities (6-8 bullet points)
+### 2. Your Role (6-8 bullet points)
 - Start each bullet with a strong action verb
 - First 2 bullets: Primary leadership/strategic responsibilities
 - Next 2-3 bullets: Core technical/functional responsibilities
@@ -25,7 +25,7 @@ Every job description must contain exactly three sections:
 
 **Format:** Each bullet should be 1-2 lines maximum.
 
-### 3. Qualifications (6-8 bullet points)
+### 3. Your Expertise (6-8 bullet points)
 - First bullet: Years of overall experience required
 - Second bullet: Years of specific domain/leadership experience
 - Next 2-3 bullets: Technical skills and expertise

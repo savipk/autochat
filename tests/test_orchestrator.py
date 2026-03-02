@@ -196,9 +196,9 @@ class TestSkillContent:
         skill = Skill(name="jd_standards", description="test", path=path)
         content = skill.load_content()
         assert "Corporate Job Description Standards" in content
-        assert "Summary" in content
-        assert "Responsibilities" in content
-        assert "Qualifications" in content
+        assert "Your Team" in content
+        assert "Your Role" in content
+        assert "Your Expertise" in content
 
     def test_load_missing_file(self):
         from core.skills.base import Skill

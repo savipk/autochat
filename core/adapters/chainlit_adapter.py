@@ -179,21 +179,9 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
             ))
 
     elif tool_name in ("jd_compose", "section_editor"):
-        sections = tool_result.get("sections", {})
-        if isinstance(tool_result.get("updated_content"), str):
-            section_name = tool_result.get("section", "section")
-            elements.append(cl.Text(
-                name=f"jd_{section_name}",
-                content=f"## {section_name.title()}\n\n{tool_result['updated_content']}",
-                display="side",
-            ))
-        elif sections:
-            for section_name, content in sections.items():
-                elements.append(cl.Text(
-                    name=f"jd_{section_name}",
-                    content=f"## {section_name.title()}\n\n{content}",
-                    display="side",
-                ))
+        # JD content is now rendered by the JD Editor side panel.
+        # The panel is opened/refreshed via SSE events pushed from app.py.
+        pass
 
     return elements
 

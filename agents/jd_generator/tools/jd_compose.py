@@ -14,7 +14,7 @@ def jd_compose(
     key_focus: str | None = None,
 ) -> dict:
     """Composes an initial job description draft with three sections:
-    Summary, Responsibilities, and Qualifications. Uses similar JDs and
+    Your Team, Your Role, and Your Expertise. Uses similar JDs and
     corporate standards as reference."""
     return run_jd_compose(job_title, department, level, team_size, key_focus)
 
@@ -47,13 +47,15 @@ def run_jd_compose(
         "department": department,
         "level": level,
         "sections": {
-            "summary": (
-                f"We are seeking a {job_title} to join our {department} team. "
-                f"In this {level}-level role, you will lead a team of {team} professionals "
-                f"focused on {focus}. This is a high-impact position that combines technical "
-                f"leadership with strategic vision to drive our AI/ML capabilities forward."
+            "your_team": (
+                f"Join our {department} team, where a group of {team} professionals is "
+                f"driving innovation in {focus}. We foster a collaborative, inclusive culture "
+                f"that values technical excellence and creative problem-solving. Our team "
+                f"partners closely with business leaders across the firm to deliver "
+                f"high-impact AI/ML solutions at scale."
             ),
-            "responsibilities": (
+            "your_role": (
+                f"As {job_title} ({level}), you will:\n"
                 f"- Lead and mentor a team of {team} engineers and data scientists\n"
                 f"- Define and execute the technical strategy for {focus}\n"
                 "- Collaborate with senior stakeholders to align AI initiatives with business goals\n"
@@ -62,7 +64,7 @@ def run_jd_compose(
                 "- Present findings and recommendations to senior leadership\n"
                 "- Stay current with emerging AI/ML technologies and assess applicability"
             ),
-            "qualifications": (
+            "your_expertise": (
                 "- 8+ years of experience in software engineering or data science\n"
                 "- 3+ years of experience leading technical teams\n"
                 "- Strong expertise in Python, machine learning frameworks (PyTorch, TensorFlow)\n"

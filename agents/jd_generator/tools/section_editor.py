@@ -4,7 +4,7 @@ Section editor tool -- Edits a specific section of a JD draft.
 
 from langchain_core.tools import tool
 
-VALID_SECTIONS = ["summary", "responsibilities", "qualifications"]
+VALID_SECTIONS = ["your_team", "your_role", "your_expertise"]
 
 
 @tool
@@ -13,7 +13,7 @@ def section_editor(
     section: str,
     instruction: str,
 ) -> dict:
-    """Edits a specific section (summary, responsibilities, or qualifications)
+    """Edits a specific section (your_team, your_role, or your_expertise)
     of a JD draft based on the user's feedback or instructions."""
     return run_section_editor(draft_id, section, instruction)
 
@@ -37,13 +37,13 @@ def run_section_editor(
         }
 
     mock_edits = {
-        "summary": (
-            "We are seeking a visionary GenAI Lead to spearhead our "
-            "Technology division's AI transformation. In this Executive Director-level "
-            "role, you will lead a team of 10-15 professionals focused on building "
-            "next-generation AI applications that drive measurable business impact."
+        "your_team": (
+            "Join our Technology division at the forefront of AI transformation. "
+            "Our team of 10-15 professionals is building next-generation AI applications "
+            "that drive measurable business impact. We value innovation, collaboration, "
+            "and a commitment to engineering excellence."
         ),
-        "responsibilities": (
+        "your_role": (
             "- Lead and grow a high-performing team of 10-15 AI engineers and data scientists\n"
             "- Define the strategic roadmap for generative AI adoption across the firm\n"
             "- Architect and deliver production-grade AI/ML solutions\n"
@@ -52,7 +52,7 @@ def run_section_editor(
             "- Manage vendor relationships and evaluate emerging AI technologies\n"
             "- Present technical strategy to C-suite and senior leadership"
         ),
-        "qualifications": (
+        "your_expertise": (
             "- 10+ years in software engineering with 5+ years in AI/ML\n"
             "- 4+ years leading technical teams of 8+ people\n"
             "- Deep expertise in LLMs, RAG, and generative AI architectures\n"

@@ -32,6 +32,8 @@ from core.adapters.chainlit_adapter import (
 )
 from core.profile_routes import router as profile_router, set_profile_updated, push_panel_event, register_user_metadata
 from core.profile_manager import ProfileManager
+from core.jd_routes import router as jd_router
+from core.jd_manager import JDDraftManager
 
 
 # ============================================================================
@@ -132,10 +134,10 @@ orchestrator = create_orchestrator_agent(registry, checkpointer=checkpointer)
 from chainlit.server import app as chainlit_app
 
 chainlit_app.include_router(profile_router)
+chainlit_app.include_router(jd_router)
 
-# Move our routes before the catch-all by re-ordering the route list
-_our_prefixes = tuple(r.path for r in profile_router.routes)
-_ours = [r for r in chainlit_app.routes if getattr(r, "path", "").startswith("/api/profile")]
+# Move our API routes before Chainlit's catch-all by re-ordering the route list
+_ours = [r for r in chainlit_app.routes if getattr(r, "path", "").startswith(("/api/profile", "/api/jd"))]
 _rest = [r for r in chainlit_app.routes if r not in _ours]
 chainlit_app.routes[:] = _ours + _rest
 
@@ -409,6 +411,25 @@ async def on_message(message: cl.Message):
                                 "job_id": _tool_result["job_id"],
                                 "job": _tool_result.get("job", {}),
                             })
+                    elif tool_name == "jd_compose":
+                        if isinstance(_tool_result, dict) and _tool_result.get("success"):
+                            try:
+                                jd_mgr = JDDraftManager(username)
+                                jd_mgr.save_draft(_tool_result)
+                                push_panel_event(username, "open_jd_editor")
+                            except Exception:
+                                logger.debug("Failed to save JD draft", exc_info=True)
+                    elif tool_name == "section_editor":
+                        if isinstance(_tool_result, dict) and _tool_result.get("success"):
+                            try:
+                                jd_mgr = JDDraftManager(username)
+                                section = _tool_result.get("section", "")
+                                content = _tool_result.get("updated_content", "")
+                                if section and content:
+                                    jd_mgr.update_section(section, content)
+                                push_panel_event(username, "refresh_jd_editor")
+                            except Exception:
+                                logger.debug("Failed to update JD draft section", exc_info=True)
 
             # Handle human-in-the-loop interrupts (e.g. update_profile approval)
             if pending_interrupts:
