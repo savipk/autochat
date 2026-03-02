@@ -11,7 +11,7 @@ from core.profile_routes import push_panel_event
 
 
 @tool
-def open_profile_panel() -> dict:
+async def open_profile_panel() -> dict:
     """Opens the profile editor side panel for the user.
     Call this when the user wants to view, edit, review, or improve their profile."""
     return run_open_profile_panel()
