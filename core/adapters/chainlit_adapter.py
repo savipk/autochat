@@ -37,8 +37,8 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
 
     if tool_name == "get_matches":
         matches = tool_result.get("matches", [])
-        for job in matches:
-            elements.append(cl.CustomElement(name="JobCard", props=job))
+        if matches:
+            elements.append(cl.CustomElement(name="JobCard", props={"jobs": matches}))
 
     elif tool_name == "profile_analyzer":
         elements.append(cl.CustomElement(name="ProfileScore", props={
