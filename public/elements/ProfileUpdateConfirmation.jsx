@@ -13,12 +13,12 @@ export default function ProfileUpdateConfirmation() {
     const [status, setStatus] = useState("pending") // pending | accepted | declined
 
     function handleAccept() {
-        callAction("approve_profile_update", payload)
+        callAction({ name: "approve_profile_update", payload: JSON.parse(payload) })
         setStatus("accepted")
     }
 
     function handleDecline() {
-        callAction("reject_profile_update", payload)
+        callAction({ name: "reject_profile_update", payload: JSON.parse(payload) })
         setStatus("declined")
     }
 
