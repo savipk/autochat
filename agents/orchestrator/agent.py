@@ -82,8 +82,7 @@ def _create_worker_agent(agent: BaseAgent, name: str, description: str, context_
 
                 if not agent_response:
                     agent_response = (
-                        "I'd like to propose some changes to your profile. "
-                        "A confirmation card will appear — please accept or decline."
+                        "I'd like to update your profile with the below — approve or decline on the card."
                     )
 
                 return json.dumps({

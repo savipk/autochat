@@ -234,6 +234,7 @@ async def approve_profile_update(action: cl.Action):
         pass
 
     cl.user_session.set("pending_interrupt", None)
+    await action.remove()
     await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
 
 
@@ -254,6 +255,7 @@ async def reject_profile_update(action: cl.Action):
         except Exception:
             logger.debug("Failed to resume agent for rejection", exc_info=True)
         cl.user_session.set("pending_interrupt", None)
+    await action.remove()
     await cl.Message(content="Profile update declined. No changes were made.").send()
 
 
@@ -345,6 +347,7 @@ async def on_message(message: cl.Message):
 
     response_text = ""
     all_elements: list = []
+    pending_actions: list[cl.Action] = []
 
     async with cl.Step(name="Processing your request", type="tool") as step:
         try:
@@ -389,13 +392,32 @@ async def on_message(message: cl.Message):
                         username=username,
                     )
                     all_elements.extend(intr_elements)
-                    # Extract section from interrupt for confirmation messages
+                    # Extract section and build payload for action callbacks
                     intr_section = "profile"
+                    intr_payload = {}
                     intr_value = intr_info["interrupt"].get("value", {})
                     for ar in intr_value.get("action_requests", []):
-                        if ar.get("action") == "update_profile" or ar.get("name") == "update_profile":
+                        if ar.get("name") == "update_profile":
                             intr_section = ar.get("args", {}).get("section", "profile")
+                            intr_payload = {
+                                "section": intr_section,
+                                "updates": ar.get("args", {}).get("updates", {}),
+                                "profile_path": profile_path,
+                                "username": username,
+                            }
                             break
+
+                    # Register cl.Action objects so Chainlit's callAction() can find them
+                    pending_actions.append(cl.Action(
+                        name="approve_profile_update",
+                        payload=intr_payload,
+                        label="Accept",
+                    ))
+                    pending_actions.append(cl.Action(
+                        name="reject_profile_update",
+                        payload=intr_payload,
+                        label="Decline",
+                    ))
 
                     # Store interrupt metadata in session for resume
                     cl.user_session.set("pending_interrupt", {
@@ -425,6 +447,8 @@ async def on_message(message: cl.Message):
     msg = cl.Message(content=response_text)
     if all_elements:
         msg.elements = all_elements
+    if pending_actions:
+        msg.actions = pending_actions
     await msg.send()
 
 
