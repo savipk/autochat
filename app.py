@@ -87,6 +87,16 @@ def get_data_layer():
 # HELPERS
 # ============================================================================
 
+async def _sync_user_metadata_to_db(identifier: str, metadata: dict):
+    """Update the user's metadata column in the DB so /user returns fresh data."""
+    dl = get_data_layer()
+    await dl.execute_sql(
+        query="UPDATE users SET metadata = :metadata WHERE identifier = :identifier",
+        parameters={"metadata": json.dumps(metadata), "identifier": identifier},
+    )
+    logger.info("Synced metadata to DB for user '%s'", identifier)
+
+
 def _profile_path_for_session() -> str | None:
     user = cl.user_session.get("user")
     if user and hasattr(user, "metadata") and user.metadata:
@@ -164,8 +174,24 @@ async def on_chat_start():
     """Initialize session — store the thread_id for context building."""
     cl.user_session.set("thread_id", cl.context.session.id)
 
-    # Emit user metadata so the side panel JS can read username + profile_path
+    # Sync persisted user metadata with auth config so the /user endpoint
+    # returns up-to-date fields (e.g. profile_path).  The DB row created on
+    # first login may have stale metadata if the auth_callback was updated
+    # after the user was originally persisted.
     user = cl.user_session.get("user")
+    if user:
+        users_config = _get_users()
+        config = users_config.get(user.identifier)
+        if config:
+            expected_metadata = {"role": "user", "profile_path": config["profile_path"]}
+            if user.metadata != expected_metadata:
+                user.metadata = expected_metadata
+                try:
+                    await _sync_user_metadata_to_db(user.identifier, expected_metadata)
+                except Exception:
+                    logger.debug("Failed to sync user metadata to DB", exc_info=True)
+
+    # Emit user metadata so the side panel JS can read username + profile_path
     if user and hasattr(user, "metadata") and user.metadata:
         meta = {
             "username": user.identifier,
