@@ -1,13 +1,11 @@
-# Autochat Architecture Diagrams
-
-Use this page directly in your team presentation. Each section maps to one slide.
+# HR Agent Architecture Diagrams
 
 ## 1) System Context Diagram
 
 ```mermaid
 flowchart LR
   U["Employee / Hiring Manager"] --> UI["Chainlit Web UI"]
-  UI --> AC["autochat App Runtime (app.py)"]
+  UI --> AC["HR Agent App Runtime (app.py)"]
 
   AC --> ORCH["Orchestrator Agent"]
   ORCH --> MC["MyCareer Agent"]
@@ -27,8 +25,8 @@ flowchart LR
   JD --> LLM
 ```
 
-Speaker notes:
-- This shows where `autochat` sits between end users, AI models, and local persistence.
+Notes:
+- This shows where `HR Agent` sits between end users, AI models, and local persistence.
 - The orchestrator is the single routing point that delegates to specialist agents.
 - Profile APIs and SSE support side-panel UX for profile editing and refresh events.
 
@@ -36,7 +34,7 @@ Speaker notes:
 
 ```mermaid
 flowchart TB
-  subgraph CoreService["autochat Core Service"]
+  subgraph CoreService["HR Agent Core Service"]
     APP["Chainlit Entry + Session/Auth\n(app.py)"]
     ROUTER["Message Router\n(on_message)"]
     ORCH["OrchestratorAgent\n(routes to worker agents)"]
@@ -65,12 +63,45 @@ flowchart TB
   JT --> FS
 ```
 
-Speaker notes:
+ notes:
 - `app.py` is the runtime entry and wires auth, routing, and API mounting.
 - The adapter layer turns tool outputs into rich UI elements (cards/panels).
 - MyCareer includes human-in-the-loop approval for `update_profile` before persistence.
 
-## 3) Key Sequence Diagram (Profile Update with Approval)
+## 3) Regular Sequence Diagram (Normal Request, No HITL)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant User
+  participant UI as Chainlit UI
+  participant App as app.py
+  participant Orch as OrchestratorAgent
+  participant MC as MyCareer Agent
+  participant Tool as MyCareer Tool (e.g., get_matches)
+  participant Data as Local Data Files
+
+  User->>UI: "Find matching roles"
+  UI->>App: on_message()
+  App->>Orch: invoke(message, AppContext)
+  Orch->>MC: delegate as worker agent
+
+  MC->>Tool: call get_matches(filters, search_text)
+  Tool->>Data: read matching_jobs.json (+ profile data)
+  Data-->>Tool: jobs/profile payload
+  Tool-->>MC: tool result (matches, scores)
+
+  MC-->>Orch: worker response + inner tool summary
+  Orch-->>App: final turn messages
+  App-->>UI: text response + JobCard element(s)
+```
+
+ notes:
+- This is the baseline flow for most requests: route, tool call, respond.
+- No interrupt means the turn completes in one pass.
+- The adapter renders structured UI elements from tool outputs.
+
+## 4) Key Sequence Diagram (Profile Update with Approval)
 
 ```mermaid
 sequenceDiagram
@@ -108,14 +139,7 @@ sequenceDiagram
   App-->>UI: "Profile updated"
 ```
 
-Speaker notes:
-- This is the highest-value flow to explain trust and control.
+ notes:
+- This is the highest-value flow for trust and control.
 - Profile changes are interrupt-gated: no write until user approves.
 - After approval, the UI gets a refresh event via SSE to stay in sync.
-
-## Suggested Slide Order (10-minute architecture segment)
-
-1. System Context (2 min)
-2. Core Components (4 min)
-3. Sequence: Profile Update Approval Loop (4 min)
-
