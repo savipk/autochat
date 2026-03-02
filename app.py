@@ -28,7 +28,7 @@ from core.adapters.chainlit_adapter import (
     render_tool_elements,
     extract_tool_calls_from_messages,
 )
-from core.profile_routes import router as profile_router, set_profile_updated, register_user_metadata
+from core.profile_routes import router as profile_router, set_profile_updated, push_panel_event, register_user_metadata
 from core.profile_manager import ProfileManager
 
 
@@ -266,6 +266,16 @@ async def on_message(message: cl.Message):
             current_turn_messages = messages[turn_start:]
 
             tool_calls = extract_tool_calls_from_messages(current_turn_messages)
+
+            # If the agent opened the profile panel, push the SSE event now
+            # (post-orchestrator) so the browser can load data reliably.
+            user = cl.user_session.get("user")
+            username = user.identifier if user else ""
+            if username:
+                for tool_name, _tool_result in tool_calls:
+                    if tool_name == "open_profile_panel":
+                        push_panel_event(username, "open_panel")
+                        break
 
             for tool_name, tool_result in tool_calls:
                 elements = await render_tool_elements(tool_name, tool_result)

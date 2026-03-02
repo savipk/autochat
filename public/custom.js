@@ -112,7 +112,7 @@
 
   function handleSSEEvent(event) {
     if (event.type === "open_panel") {
-      openPanel();
+      try { openPanel(); } catch (e) { /* ensure loadProfile still runs */ }
       loadProfile();
     } else if (event.type === "refresh") {
       loadProfile();
