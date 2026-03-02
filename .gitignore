@@ -216,3 +216,4 @@ data_dump/
 # chainlit.md
 .vscode/
 *.md
+!docs/architecture-diagrams.md

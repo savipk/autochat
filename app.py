@@ -403,7 +403,10 @@ async def on_message(message: cl.Message):
                 for tool_name, _tool_result in tool_calls:
                     if tool_name == "open_profile_panel":
                         push_panel_event(username, "open_panel")
-                        break
+                    elif tool_name == "view_job":
+                        job_id = _tool_result.get("job_id", "") if isinstance(_tool_result, dict) else ""
+                        if job_id:
+                            push_panel_event(username, "open_jd_panel", data={"job_id": job_id})
 
             # Handle human-in-the-loop interrupts (e.g. update_profile approval)
             if pending_interrupts:

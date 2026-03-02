@@ -112,7 +112,7 @@ function SingleJobCard({ job }) {
                         size="sm"
                         className="text-xs font-medium rounded"
                         style={{ backgroundColor: "#6264A7", color: "#fff" }}
-                        onClick={() => sendUserMessage(`Tell me more about the ${title} role (${jobId})`)}
+                        onClick={() => sendUserMessage(`View job details for ${title} (${jobId})`)}
                     >
                         View
                     </Button>

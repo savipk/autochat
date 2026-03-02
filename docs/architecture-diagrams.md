@@ -11,13 +11,14 @@ Key differences
  ### ReAct pattern
  - Agent is presented with the tools. It "decides" whether to call it or not
  - Agent can call multiple tools in one go (chaining rules)
+ - Overrides are applied using middleware in langchain (callback functions/hooks)
  - Major development work and complexity is in context, memory and error management (Thorough testing of user input/execution patterns after every change)
  - Focus is on when not to execute a tool 
 
 ### Orchestrator-Worker pattern
+- Patterns explored:  supervisor, router, workspace, Swarm
 - Orchestrator is well bahaved in most cases. 
 - There are edge cases where orchestrator directly talks to the user without handing off to worker agent. 
-- Patterns explored:  supervisor, router, workspace, Swarm
 - Currently orchestrator with react is being used. Haven't found any issues. No current use cases for cross agent chaining. 
 - Considering the evolution of orchestrator agent in future, it might be easier to start with a ReAct Agent
 - Orchestrator can get complicated with more agents and tools being added. A reasoning model is needed.

@@ -115,6 +115,29 @@ async def poll_update(x_username: str = Header(...)):
 
 
 # ---------------------------------------------------------------------------
+# JD detail endpoint — serves full job data for the JD side panel
+# ---------------------------------------------------------------------------
+
+@router.get("/jd-detail")
+async def get_jd_detail(job_id: str = Query(...)):
+    """Return full job JSON for the given job ID."""
+    import os
+    jobs_path = os.path.join(os.path.dirname(__file__), "..", "data", "matching_jobs.json")
+    jobs_path = os.path.normpath(jobs_path)
+    try:
+        with open(jobs_path, "r") as f:
+            data = json.load(f)
+        jobs = data.get("jobs", [])
+        job = next((j for j in jobs if j.get("id") == job_id), None)
+        if not job:
+            return {"error": f"Job ID '{job_id}' not found."}
+        return job
+    except Exception as e:
+        logger.exception("Failed to load job detail")
+        return {"error": str(e)}
+
+
+# ---------------------------------------------------------------------------
 # SSE endpoint — pushes panel events to the browser
 # ---------------------------------------------------------------------------
 
@@ -175,13 +198,16 @@ async def whoami(x_username: str = Header(...)):
 # Helpers used by app.py action callbacks
 # ---------------------------------------------------------------------------
 
-def push_panel_event(username: str, event_type: str = "open_panel"):
+def push_panel_event(username: str, event_type: str = "open_panel", data: dict | None = None):
     """Push an SSE event to all connected clients for this user."""
     queues = _sse_queues.get(username, [])
     logger.debug("push_panel_event: username=%s event=%s queues=%d",
                  username, event_type, len(queues))
+    event_payload: dict[str, Any] = {"type": event_type}
+    if data:
+        event_payload.update(data)
     for q in queues:
-        q.put_nowait({"type": event_type})
+        q.put_nowait(event_payload)
 
 
 def set_profile_updated(username: str):

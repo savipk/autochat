@@ -425,3 +425,78 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   color: #6b7280;
   font-size: 13px;
 }
+
+/* ===== JD (Job Description) Side Panel ===== */
+
+#root.autochat-jd-panel-open {
+  margin-right: 400px;
+}
+
+.autochat-jd-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 400px;
+  height: 100%;
+  border-left: 1px solid #e5e7eb;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  z-index: 1000;
+  transition: right 0.3s ease;
+}
+
+.autochat-jd-panel.open {
+  right: 0;
+}
+
+/* JD panel text blocks */
+.jd-text-block {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #374151;
+  margin: 0;
+}
+
+/* JD requirements list */
+.jd-requirements-list {
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.jd-requirements-list li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+/* JD detail rows (hiring manager, org, etc.) */
+.jd-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 13px;
+}
+
+.jd-detail-row:last-child {
+  border-bottom: none;
+}
+
+.jd-detail-label {
+  color: #6b7280;
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+/* JD panel footer actions */
+.jd-panel-actions {
+  gap: 8px;
+}
