@@ -23,28 +23,40 @@ Key differences
 - There are edge cases where orchestrator directly talks to the user without handing off to worker agent. 
 - Currently orchestrator with react is being used. Haven't found any issues. No current use cases for cross agent chaining. 
 - Considering the evolution of orchestrator agent in future, it might be easier to start with a ReAct Agent
-- Orchestrator can get complicated with more agents and tools being added. A reasoning model is needed.
+- Orchestrator can get complicated with more agents and tools being added. A reasoning and more powerfull model is needed.
 - Separation of concerns: Its important to keep the domain specific tasks out of orchestrators purview. Its sole job is to do the hand off
 - Orchestrator should not do workers failure/error management
 - Orchestator should not rephrase users queries, instead it should pass the messages as is
 - Orchestrator should not process the resuls
-- An output (Synthesizer) agent was considered but not implemented. None of the current usecases require one.
+- An output (Synthesizer) agent was considered but not implemented. None of the current usecases require one. (The orchestrator do not deal with multiple agents and single agent responses are self contained. Multipe agent scenario might need a Synthesizer agent to consolidate the response)
 - Thread management: Orchestrator sees the main thread. Worker agents only see their subsets (thread_id:<worker-agent_id>)
 - Orchestrator can hit a limit when adding more and more agents (external studies). No limits found during the PoC.
 - Worker agents should be self contained
 - Ability to add or remove an agent without making breaking changes (open/close - add instead of modify) - Registry
 - Communication protocol for Agent to Agent interaction (A2A)
-- MCP and A2A need to be assessed for delta (Talk to Januario on java implementation)
 - it might be a good idea to associate capabilities with (bbs?) role
 - Tool calls are optional for the model. This creates hallucinations
 
-## Other notes:
+### Other notes:
 - Edge cases can not be avoided in production. There are always unseen execution paths that the model might not have instructed to behave in. The focus should be on avoiding risky edge cases especially write operations.
 - It is a good practice to confirm with the user more often.
 - What we mainly need is clear distinction of responsibilities of worker agents and clear domain separation so that orchestrator is not ambiguous about the intent that sounds similar (two similar tools). Inorder to avoid this. 
   1. Come up with a predefined HR domain landscape and stick to it (which is very difficult)
   2. Manage a central tracking system of prompts (and agents) and review it for conflicts and ambiguity before adding a new agent or tool. This can be a meta agent who analyzes the prompts. 
-- Broad Personas tends to lead to ambigoud decision making by orchestrator (Employee vs HM. Sometimes both.). Make the agent role or task based. Not HM but Hiring Assistant agent. This makes it easier for orchestrator to distinguish between different agents and find the boundary.
+- Broad Personas tends to lead to ambigous decision making by orchestrator (Employee vs HM. Sometimes both.). Make the agent role or task based. Not HM but Hiring Assistant agent. This makes it easier for orchestrator to distinguish between different agents and find the boundary.
+
+- MCP and A2A - Talk to Januario on java implementation and find delta
+### MCP:
+Currently tools are single agent (Dont have to expose to multiple agents)
+No thirdparty tools
+Can add latency
+Might benefit with a mix of local and MCP agents
+Local tools can be migrated to MCP when needed to expose to multiple agents.
+Need to conduct analsis on complexity of MCP vs Non MCP implementation
+
+### A2A
+Since mycareer agent can go to production soon after jd generator, it makes sense to add it right now. Otherwise it is a short amount of time to do the refactoring. 
+A2A still need to be integrated into the PoC. Skeleton is implemented but its not being used currently.
 
 
 ### Key implementation aspects
@@ -82,7 +94,6 @@ flowchart LR
 Notes:
 - This shows where `HR Agent` sits between end users, AI models, and local persistence.
 - The orchestrator is the single routing point that delegates to specialist agents.
-- Profile APIs and SSE support side-panel UX for profile editing and refresh events.
 
 ## Core Component Diagram
 
@@ -195,4 +206,12 @@ sequenceDiagram
 
  notes:
 - Profile changes are interrupt-gated: no write until user approves.
-- After approval, the UI gets a refresh event via SSE to stay in sync.
+- After approval, the UI gets a refresh event to stay in sync.
+
+
+https://docs.langchain.com/oss/python/langgraph/workflows-agents
+https://docs.langchain.com/oss/python/langchain/multi-agent
+https://blog.apify.com/ai-agent-orchestration
+https://developers.openai.com/cookbook/examples/orchestrating_agents/
+https://developers.googleblog.com/developers-guide-to-multi-agent-patterns-in-adk/
+https://microsoft.github.io/multi-agent-reference-architecture/index.html
