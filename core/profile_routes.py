@@ -121,6 +121,7 @@ async def poll_update(x_username: str = Header(...)):
 @router.get("/jd-detail")
 async def get_jd_detail(job_id: str = Query(...)):
     """Return full job JSON for the given job ID."""
+    from fastapi.responses import JSONResponse
     import os
     jobs_path = os.path.join(os.path.dirname(__file__), "..", "data", "matching_jobs.json")
     jobs_path = os.path.normpath(jobs_path)
@@ -130,11 +131,11 @@ async def get_jd_detail(job_id: str = Query(...)):
         jobs = data.get("jobs", [])
         job = next((j for j in jobs if j.get("id") == job_id), None)
         if not job:
-            return {"error": f"Job ID '{job_id}' not found."}
-        return job
+            return JSONResponse({"error": f"Job ID '{job_id}' not found."}, headers={"Cache-Control": "no-store"})
+        return JSONResponse(job, headers={"Cache-Control": "no-store"})
     except Exception as e:
         logger.exception("Failed to load job detail")
-        return {"error": str(e)}
+        return JSONResponse({"error": str(e)}, headers={"Cache-Control": "no-store"})
 
 
 # ---------------------------------------------------------------------------

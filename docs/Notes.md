@@ -13,7 +13,10 @@ Key differences
  - Agent can call multiple tools in one go (chaining rules)
  - Overrides are applied using middleware in langchain (callback functions/hooks)
  - Major development work and complexity is in context, memory and error management (Thorough testing of user input/execution patterns after every change)
+ - The underlying agents were expanded with more capabilities to test for scalability (It always work in simple straight forward cases like routing to a tool etc). Complex interaction patterns were put to test. 
  - Focus is on when not to execute a tool (most of the time was spend on prompt restricting the agent to available capabilities)
+ - Behavior changed from not all scenarios work (workflow) to all scenarios work but sometimes it does more than you expect it to.
+
 
 ### Orchestrator-Worker pattern
 - Patterns explored:  supervisor, router, workspace, Swarm
@@ -50,7 +53,6 @@ Key differences
 - Failure management 
 - Memory management 
 - Logging and monitoring 
-
 
 
 ## System Context Diagram

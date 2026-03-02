@@ -742,8 +742,12 @@
   function loadJobDetail(jobId) {
     if (!_jdPanelEl) return;
     _jdPanelEl.innerHTML = '<div class="profile-panel-loading">Loading job details...</div>';
-    fetch("/api/profile/jd-detail?job_id=" + encodeURIComponent(jobId), { credentials: "include" })
-      .then(function (r) { return r.json(); })
+    var url = "/api/profile/jd-detail?job_id=" + encodeURIComponent(jobId) + "&_t=" + Date.now();
+    fetch(url, { credentials: "include", cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
       .then(function (job) {
         if (job.error) {
           _jdPanelEl.innerHTML = '<div class="profile-panel-loading">Job not found.</div>';
@@ -751,7 +755,8 @@
         }
         renderJdPanel(job);
       })
-      .catch(function () {
+      .catch(function (err) {
+        console.error("JD panel fetch failed:", err);
         _jdPanelEl.innerHTML = '<div class="profile-panel-loading">Failed to load job details.</div>';
       });
   }
