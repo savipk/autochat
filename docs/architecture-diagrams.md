@@ -1,6 +1,19 @@
-# HR Agent Architecture Diagrams
+## High level notes
+Key differences
+The workflow pattern
+- Intent detection identifies one intent at a time
+- Tool execution is manual (based on the intent)
+- Overrides are applied before any action is taken by the agent
+- Major development effort goes to the workflow and graph
+- Focus is on  when to execute a tool
+ 
+ React pattern
+ - Agent is presented with the tools. It "decides" whether to call it or not
+ - Agent can call multiple tools in one go (chaining rules)
+ - Major development work is expected in context and memory management
+ - Focus is on when not to execute a tool 
 
-## 1) System Context Diagram
+## System Context Diagram
 
 ```mermaid
 flowchart LR
@@ -30,7 +43,7 @@ Notes:
 - The orchestrator is the single routing point that delegates to specialist agents.
 - Profile APIs and SSE support side-panel UX for profile editing and refresh events.
 
-## 2) Core Component Diagram
+## Core Component Diagram
 
 ```mermaid
 flowchart TB
@@ -63,12 +76,12 @@ flowchart TB
   JT --> FS
 ```
 
- notes:
+Notes:
 - `app.py` is the runtime entry and wires auth, routing, and API mounting.
 - The adapter layer turns tool outputs into rich UI elements (cards/panels).
 - MyCareer includes human-in-the-loop approval for `update_profile` before persistence.
 
-## 3) Regular Sequence Diagram (Normal Request, No HITL)
+## Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -101,7 +114,7 @@ sequenceDiagram
 - No interrupt means the turn completes in one pass.
 - The adapter renders structured UI elements from tool outputs.
 
-## 4) Key Sequence Diagram (Profile Update with Approval)
+## Sequence Diagram (Profile Update with Approval - HITL)
 
 ```mermaid
 sequenceDiagram
@@ -140,6 +153,5 @@ sequenceDiagram
 ```
 
  notes:
-- This is the highest-value flow for trust and control.
 - Profile changes are interrupt-gated: no write until user approves.
 - After approval, the UI gets a refresh event via SSE to stay in sync.
