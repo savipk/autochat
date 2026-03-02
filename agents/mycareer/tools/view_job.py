@@ -1,15 +1,15 @@
 """
-View job tool -- opens the JD side panel for a specific role via SSE.
+View job tool -- returns job details for a specific role.
+
+The SSE event to open the JD panel is pushed by app.py post-orchestrator
+(same pattern as open_profile_panel).
 """
 
 import json
 import os
 from typing import Any
 
-import chainlit as cl
 from langchain_core.tools import tool
-
-from core.profile_routes import push_panel_event
 
 
 @tool
@@ -20,9 +20,8 @@ async def view_job(job_id: str) -> dict:
 
 
 def run_view_job(job_id: str) -> dict[str, Any]:
-    """Load job data by ID and push an SSE event to open the JD panel."""
+    """Load job data by ID and return it. SSE push is handled by app.py."""
     try:
-        # Load matching jobs
         jobs_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "matching_jobs.json")
         jobs_path = os.path.normpath(jobs_path)
 
@@ -34,12 +33,6 @@ def run_view_job(job_id: str) -> dict[str, Any]:
 
         if not job:
             return {"success": False, "error": f"Job ID '{job_id}' not found."}
-
-        # Push SSE event to open the JD panel
-        user = cl.user_session.get("user")
-        if user and hasattr(user, "metadata"):
-            username = user.identifier
-            push_panel_event(username, "open_jd_panel", data={"job_id": job_id})
 
         return {"success": True, "job_id": job_id, "title": job.get("title", "")}
     except Exception as e:

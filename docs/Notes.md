@@ -6,14 +6,14 @@ Key differences
 - Tool execution is manual (based on the intent)
 - Overrides are applied before any action is taken by the agent
 - Major development effort and complexity goes to constructing and managing the workflow and graph. (Thorough testing of graph after each change)
-- Focus is on  when to execute a tool
+- Focus is on  when to execute a tool (most time spend on developing and connecting graphs, adding more routes)
  
  ### ReAct pattern
  - Agent is presented with the tools. It "decides" whether to call it or not
  - Agent can call multiple tools in one go (chaining rules)
  - Overrides are applied using middleware in langchain (callback functions/hooks)
  - Major development work and complexity is in context, memory and error management (Thorough testing of user input/execution patterns after every change)
- - Focus is on when not to execute a tool 
+ - Focus is on when not to execute a tool (most of the time was spend on prompt restricting the agent to available capabilities)
 
 ### Orchestrator-Worker pattern
 - Patterns explored:  supervisor, router, workspace, Swarm

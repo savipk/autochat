@@ -722,7 +722,10 @@
 
   function openJdPanel(jobId) {
     if (!_jdPanelEl) createJdPanel();
-    _currentJobId = jobId || "";
+    var newId = jobId || "";
+    // If already open for the same job, don't re-fetch
+    if (_jdPanelOpen && newId === _currentJobId) return;
+    _currentJobId = newId;
     _jdPanelOpen = true;
     _jdPanelEl.classList.add("open");
     document.getElementById("root").classList.add("autochat-jd-panel-open");
