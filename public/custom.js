@@ -130,10 +130,27 @@
     };
   }
 
+  function normalizeProfile(profile) {
+    if (!profile) return;
+    var core = profile.core = profile.core || {};
+    var sections = [
+      "experience", "qualification", "skills",
+      "careerAspirationPreference", "careerLocationPreference",
+      "careerRolePreference", "language",
+    ];
+    sections.forEach(function (s) {
+      if (!core[s] && profile[s]) core[s] = profile[s];
+    });
+    if (typeof core.completionScore !== "number" && typeof profile.completionScore === "number") {
+      core.completionScore = profile.completionScore;
+    }
+  }
+
   function loadProfile() {
     fetch("/api/profile/current", { headers: apiHeaders(), credentials: "include" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        normalizeProfile(data);
         _originalProfile = JSON.parse(JSON.stringify(data));
         _currentProfile = JSON.parse(JSON.stringify(data));
         _draftIndex = -1;
