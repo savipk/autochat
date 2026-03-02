@@ -17,7 +17,6 @@ Key differences
  - Focus is on when not to execute a tool (most of the time was spend on prompt restricting the agent to available capabilities)
  - Behavior changed from not all scenarios work (workflow) to all scenarios work but sometimes it does more than you expect it to.
 
-
 ### Orchestrator-Worker pattern
 - Patterns explored:  supervisor, router, workspace, Swarm
 - Orchestrator is well bahaved in most cases. 
@@ -45,7 +44,7 @@ Key differences
 - What we mainly need is clear distinction of responsibilities of worker agents and clear domain separation so that orchestrator is not ambiguous about the intent that sounds similar (two similar tools). Inorder to avoid this. 
   1. Come up with a predefined HR domain landscape and stick to it (which is very difficult)
   2. Manage a central tracking system of prompts (and agents) and review it for conflicts and ambiguity before adding a new agent or tool. This can be a meta agent who analyzes the prompts. 
-- Instead of broad Persona. Make the agent role or task based. Not HM but Hiring Assistant agent. This makes it easier for orchestrator to distinguish between different agents and find the boundary. Language is important
+- Broad Personas tends to lead to ambigoud decision making by orchestrator (Employee vs HM. Sometimes both.). Make the agent role or task based. Not HM but Hiring Assistant agent. This makes it easier for orchestrator to distinguish between different agents and find the boundary.
 
 
 ### Key implementation aspects

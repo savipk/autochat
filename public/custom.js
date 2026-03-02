@@ -119,7 +119,7 @@
       loadProfile();
     } else if (event.type === "open_jd_panel") {
       closePanel();
-      openJdPanel(event.job_id);
+      openJdPanel(event.job_id, event.job);
     }
   }
 
@@ -720,16 +720,21 @@
     document.body.appendChild(_jdPanelEl);
   }
 
-  function openJdPanel(jobId) {
+  function openJdPanel(jobId, jobData) {
     if (!_jdPanelEl) createJdPanel();
     var newId = jobId || "";
-    // If already open for the same job, don't re-fetch
+    // If already open for the same job, don't re-render
     if (_jdPanelOpen && newId === _currentJobId) return;
     _currentJobId = newId;
     _jdPanelOpen = true;
     _jdPanelEl.classList.add("open");
     document.getElementById("root").classList.add("autochat-jd-panel-open");
-    if (_currentJobId) loadJobDetail(_currentJobId);
+    // Use job data from SSE event directly — no separate fetch needed
+    if (jobData && typeof jobData === "object" && jobData.title) {
+      renderJdPanel(jobData);
+    } else if (_currentJobId) {
+      loadJobDetail(_currentJobId);
+    }
   }
 
   function closeJdPanel() {

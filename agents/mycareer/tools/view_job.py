@@ -34,6 +34,6 @@ def run_view_job(job_id: str) -> dict[str, Any]:
         if not job:
             return {"success": False, "error": f"Job ID '{job_id}' not found."}
 
-        return {"success": True, "job_id": job_id, "title": job.get("title", "")}
+        return {"success": True, "job_id": job_id, "job": job}
     except Exception as e:
         return {"success": False, "error": str(e)}
