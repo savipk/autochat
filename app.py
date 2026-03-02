@@ -216,7 +216,7 @@ async def approve_profile_update(action: cl.Action):
     try:
         agent = registry.get(agent_name)
         await agent.resume(
-            {"type": "approve"},
+            {"decisions": [{"type": "approve"}]},
             thread_id=namespaced_id,
         )
     except Exception as e:
@@ -248,7 +248,7 @@ async def reject_profile_update(action: cl.Action):
         try:
             agent = registry.get(agent_name)
             await agent.resume(
-                {"type": "reject"},
+                {"decisions": [{"type": "reject", "message": "User declined the update."}]},
                 thread_id=namespaced_id,
             )
         except Exception:
@@ -261,9 +261,32 @@ async def reject_profile_update(action: cl.Action):
 # MESSAGE HANDLER
 # ============================================================================
 
+async def _clear_pending_interrupt():
+    """If there is a pending HITL interrupt, resume with reject to clean the graph state."""
+    pending = cl.user_session.get("pending_interrupt")
+    if not pending:
+        return
+    agent_name = pending.get("agent_name", "mycareer")
+    parent_thread_id = pending.get("thread_id", "")
+    namespaced_id = f"{parent_thread_id}:{agent_name}"
+    try:
+        agent = registry.get(agent_name)
+        await agent.resume(
+            {"decisions": [{"type": "reject", "message": "Superseded by new user message."}]},
+            thread_id=namespaced_id,
+        )
+    except Exception:
+        logger.debug("Failed to auto-clear pending interrupt", exc_info=True)
+    cl.user_session.set("pending_interrupt", None)
+
+
 @cl.on_message
 async def on_message(message: cl.Message):
     """Route every message through the orchestrator agent."""
+    # If there's a pending interrupt from a previous turn, reject it so the
+    # graph state is clean before we process the new message.
+    await _clear_pending_interrupt()
+
     app_ctx = _build_app_context()
 
     response_text = ""
