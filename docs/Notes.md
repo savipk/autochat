@@ -1,3 +1,12 @@
+References:
+
+- https://docs.langchain.com/oss/python/langgraph/workflows-agents
+- https://docs.langchain.com/oss/python/langchain/multi-agent
+- https://blog.apify.com/ai-agent-orchestration
+- https://developers.openai.com/cookbook/examples/orchestrating_agents/
+- https://developers.googleblog.com/developers-guide-to-multi-agent-patterns-in-adk/
+- https://microsoft.github.io/multi-agent-reference-architecture/index.html
+
 ## High level notes
 
 Key differences
@@ -208,10 +217,3 @@ sequenceDiagram
 - Profile changes are interrupt-gated: no write until user approves.
 - After approval, the UI gets a refresh event to stay in sync.
 
-
-https://docs.langchain.com/oss/python/langgraph/workflows-agents
-https://docs.langchain.com/oss/python/langchain/multi-agent
-https://blog.apify.com/ai-agent-orchestration
-https://developers.openai.com/cookbook/examples/orchestrating_agents/
-https://developers.googleblog.com/developers-guide-to-multi-agent-patterns-in-adk/
-https://microsoft.github.io/multi-agent-reference-architecture/index.html
