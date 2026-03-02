@@ -261,14 +261,66 @@ async def reject_profile_update(action: cl.Action):
 # MESSAGE HANDLER
 # ============================================================================
 
-async def _clear_pending_interrupt():
-    """If there is a pending HITL interrupt, resume with reject to clean the graph state."""
+_APPROVE_PHRASES = {"approve", "accept", "yes", "sure", "go ahead", "ok", "okay", "confirm", "yep", "yeah", "y"}
+_REJECT_PHRASES = {"reject", "decline", "no", "cancel", "nope", "nah", "n"}
+
+
+async def _handle_pending_interrupt(user_text: str) -> bool | None:
+    """If there is a pending HITL interrupt, decide whether to approve, reject,
+    or auto-reject (for unrelated messages).
+
+    Returns ``True`` if the interrupt was handled (caller should stop),
+    ``None`` if there was no pending interrupt (caller should continue normally).
+    """
     pending = cl.user_session.get("pending_interrupt")
     if not pending:
-        return
+        return None
+
     agent_name = pending.get("agent_name", "mycareer")
     parent_thread_id = pending.get("thread_id", "")
     namespaced_id = f"{parent_thread_id}:{agent_name}"
+    section = pending.get("section", "profile")
+
+    normalised = user_text.strip().lower().rstrip("!.,")
+
+    if normalised in _APPROVE_PHRASES:
+        decision = {"decisions": [{"type": "approve"}]}
+        try:
+            agent = registry.get(agent_name)
+            await agent.resume(decision, thread_id=namespaced_id)
+        except Exception as e:
+            logger.exception("Failed to resume agent for chat-based approval")
+            await cl.Message(content=f"Error applying update: {type(e).__name__}").send()
+            cl.user_session.set("pending_interrupt", None)
+            return True
+
+        user = cl.user_session.get("user")
+        username = user.identifier if user else ""
+        if username:
+            set_profile_updated(username)
+        try:
+            from agents.mycareer.middleware import clear_profile_cache
+            clear_profile_cache()
+        except ImportError:
+            pass
+
+        cl.user_session.set("pending_interrupt", None)
+        await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
+        return True
+
+    if normalised in _REJECT_PHRASES:
+        decision = {"decisions": [{"type": "reject", "message": "User declined via chat."}]}
+        try:
+            agent = registry.get(agent_name)
+            await agent.resume(decision, thread_id=namespaced_id)
+        except Exception:
+            logger.debug("Failed to resume agent for chat-based rejection", exc_info=True)
+        cl.user_session.set("pending_interrupt", None)
+        await cl.Message(content="Profile update declined. No changes were made.").send()
+        return True
+
+    # Unrelated message — auto-reject the pending interrupt to clean graph state,
+    # then let the caller continue with normal message processing.
     try:
         agent = registry.get(agent_name)
         await agent.resume(
@@ -278,14 +330,16 @@ async def _clear_pending_interrupt():
     except Exception:
         logger.debug("Failed to auto-clear pending interrupt", exc_info=True)
     cl.user_session.set("pending_interrupt", None)
+    return None
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
     """Route every message through the orchestrator agent."""
-    # If there's a pending interrupt from a previous turn, reject it so the
-    # graph state is clean before we process the new message.
-    await _clear_pending_interrupt()
+    # Handle pending HITL interrupts before routing to the orchestrator.
+    handled = await _handle_pending_interrupt(message.content)
+    if handled:
+        return
 
     app_ctx = _build_app_context()
 
@@ -335,10 +389,19 @@ async def on_message(message: cl.Message):
                         username=username,
                     )
                     all_elements.extend(intr_elements)
+                    # Extract section from interrupt for confirmation messages
+                    intr_section = "profile"
+                    intr_value = intr_info["interrupt"].get("value", {})
+                    for ar in intr_value.get("action_requests", []):
+                        if ar.get("action") == "update_profile" or ar.get("name") == "update_profile":
+                            intr_section = ar.get("args", {}).get("section", "profile")
+                            break
+
                     # Store interrupt metadata in session for resume
                     cl.user_session.set("pending_interrupt", {
                         "agent_name": intr_info["agent_name"],
                         "thread_id": cl.user_session.get("thread_id", ""),
+                        "section": intr_section,
                     })
 
             for tool_name, tool_result in tool_calls:
