@@ -69,8 +69,25 @@ def _create_worker_agent(agent: BaseAgent, name: str, description: str, context_
                         "ns": intr.ns if hasattr(intr, "ns") else None,
                     })
             if pending_interrupts:
+                # Extract the agent's last AI message (its proposal text) so
+                # the orchestrator can relay it instead of inventing its own.
+                agent_response = ""
+                msgs = result.get("messages", [])
+                for msg in reversed(msgs):
+                    if hasattr(msg, "type") and msg.type == "ai":
+                        content = getattr(msg, "content", "")
+                        if content:
+                            agent_response = content
+                            break
+
+                if not agent_response:
+                    agent_response = (
+                        "I'd like to propose some changes to your profile. "
+                        "A confirmation card will appear — please accept or decline."
+                    )
+
                 return json.dumps({
-                    "response": "",
+                    "response": agent_response,
                     "tool_calls": [],
                     "interrupts": pending_interrupts,
                     "agent_name": name,
