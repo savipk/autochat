@@ -216,4 +216,4 @@ data_dump/
 # chainlit.md
 .vscode/
 *.md
-!docs/Notes.md
+docsz/*
