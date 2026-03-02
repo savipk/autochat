@@ -6,6 +6,7 @@ from agents.mycareer.tools.ask_jd_qa import ask_jd_qa, run_ask_jd_qa
 from agents.mycareer.tools.draft_message import draft_message, run_draft_message
 from agents.mycareer.tools.send_message import send_message, run_send_message
 from agents.mycareer.tools.apply_for_role import apply_for_role, run_apply_for_role
+from agents.mycareer.tools.open_profile_panel import open_profile_panel, run_open_profile_panel
 
 ALL_TOOLS = [
     profile_analyzer,
@@ -16,4 +17,5 @@ ALL_TOOLS = [
     draft_message,
     send_message,
     apply_for_role,
+    open_profile_panel,
 ]

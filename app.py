@@ -28,7 +28,7 @@ from core.adapters.chainlit_adapter import (
     render_tool_elements,
     extract_tool_calls_from_messages,
 )
-from core.profile_routes import router as profile_router, set_profile_updated, push_panel_event, register_user_metadata
+from core.profile_routes import router as profile_router, set_profile_updated, register_user_metadata
 from core.profile_manager import ProfileManager
 
 
@@ -79,28 +79,6 @@ def auth_callback(username: str, password: str):
 def get_data_layer():
     """Persist chat threads so Chainlit can show sidebar history."""
     return SQLiteCompatibleDataLayer(conninfo="sqlite+aiosqlite:///./data/data.db")
-
-
-# ============================================================================
-# PROFILE PANEL TRIGGER
-# ============================================================================
-
-_PROFILE_KEYWORDS = [
-    "profile", "skills", "experience", "education",
-    "career aspiration", "career preference", "career location",
-    "my skills", "my experience", "my education",
-]
-
-_PROFILE_TOOL_NAMES = {
-    "profile_analyzer", "update_profile", "infer_skills",
-    "get_profile_completeness",
-}
-
-
-def _is_profile_intent(text: str) -> bool:
-    """Return True if the user message looks profile-related."""
-    lower = text.lower()
-    return any(kw in lower for kw in _PROFILE_KEYWORDS)
 
 
 # ============================================================================
@@ -268,12 +246,6 @@ async def on_message(message: cl.Message):
     """Route every message through the orchestrator agent."""
     app_ctx = _build_app_context()
 
-    # Detect profile intent and push SSE event to open side panel
-    user = cl.user_session.get("user")
-    username = user.identifier if user else ""
-    if username and _is_profile_intent(message.content):
-        push_panel_event(username, "open_panel")
-
     response_text = ""
     all_elements: list = []
 
@@ -294,13 +266,6 @@ async def on_message(message: cl.Message):
             current_turn_messages = messages[turn_start:]
 
             tool_calls = extract_tool_calls_from_messages(current_turn_messages)
-
-            # If any profile-related tool was called, open the panel
-            if username:
-                for tool_name, _tool_result in tool_calls:
-                    if tool_name in _PROFILE_TOOL_NAMES:
-                        push_panel_event(username, "open_panel")
-                        break
 
             for tool_name, tool_result in tool_calls:
                 elements = await render_tool_elements(tool_name, tool_result)
