@@ -1,17 +1,56 @@
 ## High level notes
+
 Key differences
-The workflow pattern
+### The workflow pattern
 - Intent detection identifies one intent at a time
 - Tool execution is manual (based on the intent)
 - Overrides are applied before any action is taken by the agent
-- Major development effort goes to the workflow and graph
+- Major development effort and complexity goes to constructing and managing the workflow and graph. (Thorough testing of graph after each change)
 - Focus is on  when to execute a tool
  
- React pattern
+ ### ReAct pattern
  - Agent is presented with the tools. It "decides" whether to call it or not
  - Agent can call multiple tools in one go (chaining rules)
- - Major development work is expected in context and memory management
+ - Major development work and complexity is in context, memory and error management (Thorough testing of user input/execution patterns after every change)
  - Focus is on when not to execute a tool 
+
+### Orchestrator-Worker pattern
+- Orchestrator is well bahaved in most cases. 
+- There are edge cases where orchestrator directly talks to the user without handing off to worker agent. 
+- Patterns explored:  supervisor, router, workspace, Swarm
+- Currently orchestrator with react is being used. Haven't found any issues. No current use cases for cross agent chaining. 
+- Considering the evolution of orchestrator agent in future, it might be easier to start with a ReAct Agent
+- Orchestrator can get complicated with more agents and tools being added. A reasoning model is needed.
+- Separation of concerns: Its important to keep the domain specific tasks out of orchestrators purview. Its sole job is to do the hand off
+- Orchestrator should not do workers failure/error management
+- Orchestator should not rephrase users queries, instead it should pass the messages as is
+- Orchestrator should not process the resuls
+- An output (Synthesizer) agent was considered but not implemented. None of the current usecases require one.
+- Thread management: Orchestrator sees the main thread. Worker agents only see their subsets (thread_id:<worker-agent_id>)
+- Orchestrator can hit a limit when adding more and more agents (external studies). No limits found during the PoC.
+- Worker agents should be self contained
+- Ability to add or remove an agent without making breaking changes (open/close - add instead of modify) - Registry
+- Communication protocol for Agent to Agent interaction (A2A)
+- MCP and A2A need to be assessed for delta (Talk to Januario on java implementation)
+- it might be a good idea to associate capabilities with (bbs?) role
+- Tool calls are optional for the model. This creates hallucinations
+
+## Other notes:
+- Edge cases can not be avoided in production. There are always unseen execution paths that the model might not have instructed to behave in. The focus should be on avoiding risky edge cases especially write operations.
+- It is a good practice to confirm with the user more often.
+- What we mainly need is clear distinction of responsibilities of worker agents and clear domain separation so that orchestrator is not ambiguous about the intent that sounds similar (two similar tools). Inorder to avoid this. 
+  1. Come up with a predefined HR domain landscape and stick to it (which is very difficult)
+  2. Manage a central tracking system of prompts (and agents) and review it for conflicts and ambiguity before adding a new agent or tool. This can be a meta agent who analyzes the prompts. 
+- Instead of broad Persona. Make the agent role or task based. Not HM but Hiring Assistant agent. This makes it easier for orchestrator to distinguish between different agents and find the boundary. Language is important
+
+
+### Key implementation aspects
+- Context engineering
+- Failure management 
+- Memory management 
+- Logging and monitoring 
+
+
 
 ## System Context Diagram
 
