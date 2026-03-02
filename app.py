@@ -26,7 +26,9 @@ from agents.catalog import build_agent_catalog
 from agents.orchestrator.agent import create_orchestrator_agent
 from core.adapters.chainlit_adapter import (
     render_tool_elements,
+    render_interrupt_elements,
     extract_tool_calls_from_messages,
+    extract_interrupts_from_messages,
 )
 from core.profile_routes import router as profile_router, set_profile_updated, push_panel_event, register_user_metadata
 from core.profile_manager import ProfileManager
@@ -192,33 +194,36 @@ async def on_chat_resume(thread: ThreadDict):
 
 @cl.action_callback("approve_profile_update")
 async def approve_profile_update(action: cl.Action):
-    """Accept a chat-agent-initiated profile change."""
+    """Accept a chat-agent-initiated profile change by resuming the interrupted graph."""
     payload = json.loads(action.payload) if isinstance(action.payload, str) else action.payload
     section = payload.get("section", "")
-    updates = payload.get("updates", {})
-    profile_path = payload.get("profile_path", "")
     username = payload.get("username", "")
 
-    if not profile_path or not username:
+    if not username:
         await cl.Message(content="Could not apply update — missing user context.").send()
         return
 
-    mgr = ProfileManager(username=username, profile_path=profile_path)
-    profile = mgr.load_current()
+    # Resume the interrupted mycareer agent graph with an approve decision
+    pending = cl.user_session.get("pending_interrupt")
+    if not pending:
+        await cl.Message(content="No pending update to approve.").send()
+        return
 
-    # Apply the updates to the appropriate section
-    if section == "skills":
-        skills = profile.get("core", {}).get("skills", {})
-        if "topSkills" in updates:
-            skills["top"] = updates["topSkills"]
-        if "additionalSkills" in updates:
-            skills["additional"] = updates["additionalSkills"]
-        profile.setdefault("core", {})["skills"] = skills
-    else:
-        # Generic: merge updates into profile.core.<section>
-        profile.setdefault("core", {})[section] = updates
+    agent_name = pending.get("agent_name", "mycareer")
+    parent_thread_id = pending.get("thread_id", "")
+    namespaced_id = f"{parent_thread_id}:{agent_name}"
 
-    mgr.submit(profile)
+    try:
+        agent = registry.get(agent_name)
+        await agent.resume(
+            {"type": "approve"},
+            thread_id=namespaced_id,
+        )
+    except Exception as e:
+        logger.exception("Failed to resume agent for approval")
+        await cl.Message(content=f"Error applying update: {type(e).__name__}").send()
+        return
+
     set_profile_updated(username)
 
     # Clear middleware cache
@@ -228,12 +233,27 @@ async def approve_profile_update(action: cl.Action):
     except ImportError:
         pass
 
+    cl.user_session.set("pending_interrupt", None)
     await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
 
 
 @cl.action_callback("reject_profile_update")
 async def reject_profile_update(action: cl.Action):
     """Decline a chat-agent-initiated profile change."""
+    pending = cl.user_session.get("pending_interrupt")
+    if pending:
+        agent_name = pending.get("agent_name", "mycareer")
+        parent_thread_id = pending.get("thread_id", "")
+        namespaced_id = f"{parent_thread_id}:{agent_name}"
+        try:
+            agent = registry.get(agent_name)
+            await agent.resume(
+                {"type": "reject"},
+                thread_id=namespaced_id,
+            )
+        except Exception:
+            logger.debug("Failed to resume agent for rejection", exc_info=True)
+        cl.user_session.set("pending_interrupt", None)
     await cl.Message(content="Profile update declined. No changes were made.").send()
 
 
@@ -266,16 +286,37 @@ async def on_message(message: cl.Message):
             current_turn_messages = messages[turn_start:]
 
             tool_calls = extract_tool_calls_from_messages(current_turn_messages)
+            pending_interrupts = extract_interrupts_from_messages(current_turn_messages)
 
             # If the agent opened the profile panel, push the SSE event now
             # (post-orchestrator) so the browser can load data reliably.
             user = cl.user_session.get("user")
             username = user.identifier if user else ""
+            profile_path = ""
+            if user and hasattr(user, "metadata") and user.metadata:
+                profile_path = user.metadata.get("profile_path", "")
+
             if username:
                 for tool_name, _tool_result in tool_calls:
                     if tool_name == "open_profile_panel":
                         push_panel_event(username, "open_panel")
                         break
+
+            # Handle human-in-the-loop interrupts (e.g. update_profile approval)
+            if pending_interrupts:
+                for intr_info in pending_interrupts:
+                    intr_elements = await render_interrupt_elements(
+                        [intr_info["interrupt"]],
+                        agent_name=intr_info["agent_name"],
+                        profile_path=profile_path,
+                        username=username,
+                    )
+                    all_elements.extend(intr_elements)
+                    # Store interrupt metadata in session for resume
+                    cl.user_session.set("pending_interrupt", {
+                        "agent_name": intr_info["agent_name"],
+                        "thread_id": cl.user_session.get("thread_id", ""),
+                    })
 
             for tool_name, tool_result in tool_calls:
                 elements = await render_tool_elements(tool_name, tool_result)

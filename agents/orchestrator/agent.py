@@ -57,6 +57,27 @@ def _create_worker_agent(agent: BaseAgent, name: str, description: str, context_
                 "tool_calls": [],
             })
 
+        # Check for pending interrupts (human-in-the-loop)
+        try:
+            state_snapshot = await agent.get_state(namespaced_id)
+            pending_interrupts = []
+            for task in (state_snapshot.tasks or []):
+                for intr in (task.interrupts or []):
+                    pending_interrupts.append({
+                        "value": intr.value if hasattr(intr, "value") else intr,
+                        "resumable": intr.resumable if hasattr(intr, "resumable") else True,
+                        "ns": intr.ns if hasattr(intr, "ns") else None,
+                    })
+            if pending_interrupts:
+                return json.dumps({
+                    "response": "",
+                    "tool_calls": [],
+                    "interrupts": pending_interrupts,
+                    "agent_name": name,
+                })
+        except Exception:
+            logger.debug("Could not check interrupts for '%s'", name, exc_info=True)
+
         messages = result.get("messages", [])
 
         # Slice to current turn only — the checkpointer loads the full

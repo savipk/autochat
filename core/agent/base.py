@@ -6,6 +6,7 @@ from typing import Any, AsyncIterator
 
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
 
 from core.agent.config import AgentConfig
 
@@ -55,6 +56,16 @@ class BaseAgent:
         if context is not None:
             kwargs["context"] = context
         return await self._graph.ainvoke(**kwargs)
+
+    async def get_state(self, thread_id: str):
+        """Return the current graph state snapshot for a thread."""
+        config = {"configurable": {"thread_id": thread_id}}
+        return await self._graph.aget_state(config)
+
+    async def resume(self, value: Any, *, thread_id: str) -> dict:
+        """Resume an interrupted graph with the given value."""
+        config = {"configurable": {"thread_id": thread_id}}
+        return await self._graph.ainvoke(Command(resume=value), config=config)
 
     async def stream(
         self,

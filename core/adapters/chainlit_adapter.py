@@ -198,6 +198,103 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
     return elements
 
 
+async def render_interrupt_elements(
+    interrupt_data: list[dict],
+    agent_name: str,
+    profile_path: str,
+    username: str,
+) -> list:
+    """Render Chainlit elements for pending human-in-the-loop interrupts.
+
+    Currently handles ``update_profile`` interrupts by computing completion
+    scores and returning a ``ProfileUpdateConfirmation`` card.
+    """
+    from core.profile import load_profile
+
+    elements: list = []
+    for intr in interrupt_data:
+        value = intr.get("value", {})
+        action_requests = value.get("action_requests", [])
+        for req in action_requests:
+            tool_name = req.get("action", "")
+            args = req.get("args", {})
+            if tool_name != "update_profile":
+                continue
+
+            section = args.get("section", "skills")
+            updates = args.get("updates", {})
+
+            # Normalize flat skills list (mirrors update_profile logic)
+            if section == "skills" and "skills" in updates and isinstance(updates["skills"], list):
+                flat = updates["skills"]
+                updates = {
+                    "topSkills": flat[:3],
+                    "additionalSkills": flat[3:],
+                }
+
+            # Compute before/after completion scores
+            profile = load_profile(profile_path or None)
+            prev_score = _compute_completion_score(profile)
+
+            simulated = _simulate_update(profile, section, updates)
+            new_score = _compute_completion_score(simulated)
+
+            payload = json.dumps({
+                "section": section,
+                "updates": updates,
+                "profile_path": profile_path,
+                "username": username,
+            })
+
+            elements.append(cl.CustomElement(
+                name="ProfileUpdateConfirmation",
+                props={
+                    "section": section,
+                    "updated_fields": updates,
+                    "previous_completion_score": prev_score,
+                    "estimated_new_score": new_score,
+                    "payload": payload,
+                },
+            ))
+    return elements
+
+
+def _compute_completion_score(profile: dict) -> int:
+    """Compute a simple completion score based on section presence."""
+    core = profile.get("core", {})
+    sections = {
+        "experience": bool((core.get("experience") or {}).get("experiences")),
+        "education": bool((core.get("qualification") or {}).get("educations")),
+        "skills": bool(core.get("skills", {}).get("top") or core.get("skills", {}).get("additional")),
+        "aspirations": bool((core.get("careerAspirationPreference") or {}).get("preferredAspirations")),
+        "location": bool(core.get("careerLocationPreference")),
+        "roles": bool((core.get("careerRolePreference") or {}).get("preferredRoles")),
+        "language": bool((core.get("language") or {}).get("languages")),
+    }
+    filled = sum(1 for v in sections.values() if v)
+    return round(filled / len(sections) * 100)
+
+
+def _simulate_update(profile: dict, section: str, updates: dict) -> dict:
+    """Return a copy of *profile* with *updates* applied (without persisting)."""
+    import copy
+    sim = copy.deepcopy(profile)
+    core = sim.setdefault("core", {})
+    if section == "skills":
+        core.setdefault("skills", {})
+        if "topSkills" in updates:
+            core["skills"]["top"] = updates["topSkills"]
+        if "additionalSkills" in updates:
+            core["skills"]["additional"] = updates["additionalSkills"]
+    elif section == "experience":
+        core["experience"] = updates
+    elif section == "education":
+        core["qualification"] = updates
+    else:
+        core[section] = updates
+    return sim
+
+
 ORCHESTRATOR_TOOL_NAMES = {"mycareer", "jd_generator"}
 
 
@@ -240,3 +337,30 @@ def extract_tool_calls_from_messages(messages: list) -> list[tuple[str, dict]]:
             tool_calls.append((tool_name, result))
 
     return tool_calls
+
+
+def extract_interrupts_from_messages(messages: list) -> list[dict]:
+    """Extract interrupt payloads from orchestrator worker agent results.
+
+    When a worker agent hits a ``HumanInTheLoopMiddleware`` interrupt the
+    returned JSON contains an ``interrupts`` key instead of ``tool_calls``.
+    """
+    interrupts: list[dict] = []
+    for msg in messages:
+        if not (hasattr(msg, "type") and msg.type == "tool"):
+            continue
+        tool_name = getattr(msg, "name", "")
+        if tool_name not in ORCHESTRATOR_TOOL_NAMES:
+            continue
+        try:
+            content = msg.content
+            result = json.loads(content) if isinstance(content, str) else content
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(result, dict) and "interrupts" in result:
+            for intr in result["interrupts"]:
+                interrupts.append({
+                    "interrupt": intr,
+                    "agent_name": result.get("agent_name", tool_name),
+                })
+    return interrupts

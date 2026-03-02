@@ -7,6 +7,7 @@ from core.state import BaseContext
 from core.agent.base import BaseAgent
 from core.agent.config import AgentConfig
 from core.agent.protocol import AgentProtocol, AgentCard, AgentSkill, Task, TaskResult, TaskState, TaskMessage
+from langchain.agents.middleware import HumanInTheLoopMiddleware
 from core.middleware.summarization import create_summarization_middleware
 from core.middleware.tool_monitor import tool_monitor_middleware
 from agents.mycareer.middleware import first_touch_profile_middleware, mycareer_personalization, profile_warning_middleware
@@ -33,6 +34,11 @@ def create_mycareer_agent(checkpointer=None) -> BaseAgent:
             mycareer_personalization,
             profile_warning_middleware,
             tool_monitor_middleware,
+            HumanInTheLoopMiddleware(
+                interrupt_on={
+                    "update_profile": {"allowed_decisions": ["approve", "reject"]},
+                },
+            ),
         ],
         context_schema=MyCareerContext,
         checkpointer=checkpointer,
