@@ -345,6 +345,7 @@ async def on_message(message: cl.Message):
 
     response_text = ""
     all_elements: list = []
+    has_interrupt = False
 
     async with cl.Step(name="Processing your request", type="tool") as step:
         try:
@@ -397,6 +398,8 @@ async def on_message(message: cl.Message):
                             intr_section = ar.get("args", {}).get("section", "profile")
                             break
 
+                    has_interrupt = True
+
                     # Store interrupt metadata in session for resume
                     cl.user_session.set("pending_interrupt", {
                         "agent_name": intr_info["agent_name"],
@@ -426,6 +429,15 @@ async def on_message(message: cl.Message):
     if all_elements:
         msg.elements = all_elements
     await msg.send()
+
+    # Register actions server-side so callAction() from the React card
+    # doesn't hit a 422.  Using action.send(for_id=) registers them on the
+    # message without rendering standalone Chainlit buttons.
+    if has_interrupt:
+        for action_name in ("approve_profile_update", "reject_profile_update"):
+            await cl.Action(name=action_name, payload={}, label=action_name).send(
+                for_id=msg.id
+            )
 
 
 def _summarize_tool_content(content) -> str:
