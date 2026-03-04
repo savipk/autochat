@@ -720,6 +720,22 @@
     return '<div class="profile-field"><label>' + esc(label) + '</label><textarea id="' + id + '">' + esc(value) + '</textarea></div>';
   }
 
+  function chatSendMessage(text) {
+    // Programmatically send a message through Chainlit's chat input.
+    // Works by setting the textarea value and clicking the send button.
+    var textarea = document.querySelector("textarea.cl-textarea, textarea[placeholder]");
+    if (!textarea) return;
+    // React controls the input, so we use the native setter to bypass React's state
+    var nativeSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
+    nativeSetter.call(textarea, text);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    // Small delay to let React pick up the state change, then click send
+    setTimeout(function () {
+      var sendBtn = document.querySelector("button[data-testid='send-button'], button.cl-send-button, button[type='submit']");
+      if (sendBtn) sendBtn.click();
+    }, 100);
+  }
+
   function formatTimestamp(ts) {
     if (!ts || ts.length < 13) return ts;
     var m = ts.substring(4, 6);
@@ -920,19 +936,13 @@
           closeJdPanel();
           break;
         case "draft-message":
-          if (window.sendUserMessage) {
-            window.sendUserMessage("Draft a message to the hiring manager for " + jobTitle + " (" + jobId + ")");
-          }
+          chatSendMessage("Draft a message to the hiring manager for " + jobTitle + " (" + jobId + ")");
           break;
         case "apply":
-          if (window.sendUserMessage) {
-            window.sendUserMessage("Apply for the " + jobTitle + " role (" + jobId + ")");
-          }
+          chatSendMessage("Apply for the " + jobTitle + " role (" + jobId + ")");
           break;
         case "ask-question":
-          if (window.sendUserMessage) {
-            window.sendUserMessage("I have a question about the " + jobTitle + " role (" + jobId + ")");
-          }
+          chatSendMessage("I have a question about the " + jobTitle + " role (" + jobId + ")");
           break;
       }
     });
@@ -1310,9 +1320,7 @@
           checkboxes.forEach(function (cb) {
             if (cb.checked) checkedIds.push(cb.getAttribute("data-jd-ref-id"));
           });
-          if (window.sendUserMessage) {
-            window.sendUserMessage("Generate JD based on selected references: " + checkedIds.join(", "));
-          }
+          chatSendMessage("Generate JD based on selected references: " + checkedIds.join(", "));
           break;
         case "save-draft":
           saveJdDraft();
