@@ -4,14 +4,19 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { UserPen, Check, X, ArrowRight } from "lucide-react"
 
-function SkillBadges({ skills, variant = "default" }) {
+function SkillBadges({ skills, variant = "outline" }) {
     if (!skills || skills.length === 0) return <span className="text-xs text-muted-foreground">None</span>
     return (
         <div className="flex flex-wrap gap-1">
             {skills.map((skill, i) => {
                 const name = typeof skill === "object" ? skill.name || JSON.stringify(skill) : String(skill)
                 return (
-                    <Badge key={i} variant={variant} className="text-xs">
+                    <Badge
+                        key={i}
+                        variant={variant}
+                        className="text-xs"
+                        style={{ borderColor: "#6264A7", color: "#6264A7" }}
+                    >
                         {name}
                     </Badge>
                 )

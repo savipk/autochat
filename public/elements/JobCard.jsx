@@ -49,7 +49,10 @@ function SingleJobCard({ job }) {
     return (
         <Card className="relative flex flex-col" style={{ minWidth: 0, flex: "1 1 0" }}>
             {isNew && (
-                <Badge variant="destructive" className="absolute top-3 right-3 text-xs">
+                <Badge
+                    className="absolute top-3 right-3 text-xs"
+                    style={{ backgroundColor: "#6264A7", color: "#fff" }}
+                >
                     New
                 </Badge>
             )}

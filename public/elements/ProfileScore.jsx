@@ -59,7 +59,7 @@ export default function ProfileScore() {
                         <div key={key} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
                                 {isMissing ? (
-                                    <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                                    <AlertCircle className="h-3.5 w-3.5" style={{ color: "#6264A7" }} />
                                 ) : (
                                     <CheckCircle className="h-3.5 w-3.5 text-primary" />
                                 )}
