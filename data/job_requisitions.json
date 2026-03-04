@@ -1,0 +1,17 @@
+{
+  "requisitions": [
+    {
+      "requisition_id": "REQ-123123",
+      "job_title": "AI Engineer",
+      "business_function": "HRCS",
+      "department": "Technology",
+      "level": "Vice President",
+      "status": "open",
+      "created_by": "Travis Johnson",
+      "created_at": "2026-02-15",
+      "location": "New York",
+      "team_size": "8-12",
+      "key_focus": "building innovative AI solutions for HR processes"
+    }
+  ]
+}

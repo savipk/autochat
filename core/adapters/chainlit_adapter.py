@@ -16,7 +16,8 @@ job cards, skill lists, draft message bodies).  The mapping is:
   apply_for_role  -> confirmation Text element (LLM only)
   ask_jd_qa       -> LLM text + Q&A citation Text element
   update_profile  -> LLM text + profile update confirmation Text element
-  jd_search       -> LLM text + similar JDs Text element
+  get_requisition -> RequisitionCard element (LLM before element)
+  jd_search       -> pass-through (panel handles display via SSE)
   jd_finalize     -> LLM text + finalization summary Text element
 """
 
@@ -173,21 +174,22 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
                     display="inline",
                 ))
 
+    elif tool_name == "get_requisition":
+        req = tool_result.get("requisition", {})
+        if req:
+            elements.append(cl.CustomElement(name="RequisitionCard", props={
+                "job_title": req.get("job_title", ""),
+                "requisition_id": req.get("requisition_id", ""),
+                "business_function": req.get("business_function", ""),
+                "department": req.get("department", ""),
+                "level": req.get("level", ""),
+                "location": req.get("location", ""),
+            }))
+
     elif tool_name == "jd_search":
-        similar_jds = tool_result.get("similar_jds", [])
-        if similar_jds:
-            parts = []
-            for jd in similar_jds:
-                score = jd.get("similarity_score", 0)
-                parts.append(
-                    f"- **{jd.get('title', 'Untitled')}** ({jd.get('level', '')}, "
-                    f"{jd.get('department', '')}) -- similarity: {score:.0%}"
-                )
-            elements.append(cl.Text(
-                name="similar_jds",
-                content="**Similar Past JDs:**\n" + "\n".join(parts),
-                display="inline",
-            ))
+        # jd_search results are now rendered by the JD Editor side panel via SSE.
+        # The panel is opened from app.py when it detects the jd_search tool call.
+        pass
 
     elif tool_name == "jd_finalize":
         if tool_result.get("success"):

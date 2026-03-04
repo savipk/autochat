@@ -425,6 +425,12 @@ async def on_message(message: cl.Message):
                                 "job_id": _tool_result["job_id"],
                                 "job": _tool_result.get("job", {}),
                             })
+                    elif tool_name == "jd_search":
+                        if isinstance(_tool_result, dict) and _tool_result.get("success"):
+                            similar_jds = _tool_result.get("similar_jds", [])
+                            push_panel_event(username, "open_jd_editor", data={
+                                "similar_jds": similar_jds,
+                            })
                     elif tool_name == "jd_compose":
                         if isinstance(_tool_result, dict) and _tool_result.get("success"):
                             try:

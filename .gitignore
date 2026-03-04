@@ -208,7 +208,7 @@ __marimo__/
 
 .github/
 .files/
-data/
+data/*
 .DS_Store
 data_dump/
 .cursor/
@@ -218,3 +218,4 @@ data_dump/
 *.md
 docs/N*
 !docs/diagrams/*.*
+!data/job_requisitions.json

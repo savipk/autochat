@@ -126,6 +126,18 @@
     } else if (event.type === "open_jd_editor") {
       closePanel();
       closeJdPanel();
+      // Populate reference JDs if provided
+      if (event.similar_jds && Array.isArray(event.similar_jds)) {
+        _similarJds = event.similar_jds;
+        _selectedRefJds = {};
+        _similarJds.forEach(function (jd) {
+          var jdId = jd.id || "";
+          if (jdId) _selectedRefJds[jdId] = true;
+        });
+        _viewingRefJd = null;
+        _activeTab = "reference_jds";
+        _currentJdDraft = null;
+      }
       openJdEditorPanel();
     } else if (event.type === "refresh_jd_editor") {
       refreshJdEditorFromServer();
@@ -927,7 +939,7 @@
   }
 
   // ===========================================================================
-  // JD Editor Side Panel (editable draft editor with version navigation)
+  // JD Editor Side Panel (tabbed: Reference JDs + editable draft editor)
   // ===========================================================================
   var _jdEditorPanelEl = null;
   var _jdEditorPanelOpen = false;
@@ -935,10 +947,16 @@
   var _jdEditorDraftIndex = -1;
   var _currentJdDraft = null;
 
+  // New state for reference JDs and tabs
+  var _similarJds = [];
+  var _selectedRefJds = {};
+  var _activeTab = "reference_jds";
+  var _viewingRefJd = null;
+
   function createJdEditorPanel() {
     _jdEditorPanelEl = document.createElement("div");
     _jdEditorPanelEl.className = "autochat-jd-editor-panel";
-    _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">Loading JD draft...</div>';
+    _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">Loading...</div>';
     document.body.appendChild(_jdEditorPanelEl);
   }
 
@@ -964,6 +982,9 @@
         _jdEditorDraftIndex = _jdEditorDrafts.length - 1;
         renderJdEditorPanel();
       });
+    } else if (_similarJds.length > 0 && !_currentJdDraft) {
+      // Panel opened via jd_search with reference JDs but no draft yet
+      renderJdEditorPanel();
     } else {
       // Load latest from server
       loadLatestJdDraft();
@@ -982,7 +1003,8 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.sections) {
-          if (_jdEditorPanelEl) _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">No JD draft found.</div>';
+          // No draft yet — just render the panel with reference JDs tab
+          renderJdEditorPanel();
           return;
         }
         _currentJdDraft = JSON.parse(JSON.stringify(data));
@@ -992,13 +1014,15 @@
         });
       })
       .catch(function () {
-        if (_jdEditorPanelEl) _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">Failed to load JD draft.</div>';
+        // Still render panel even on failure (reference JDs tab may be available)
+        renderJdEditorPanel();
       });
   }
 
   function refreshJdEditorFromServer() {
-    // Called on SSE refresh_jd_editor — reload latest draft if panel is open
+    // Called on SSE refresh_jd_editor — reload latest draft and switch to editor tab
     if (!_jdEditorPanelOpen) return;
+    _activeTab = "jd_editor";
     loadLatestJdDraft();
   }
 
@@ -1022,7 +1046,7 @@
   }
 
   function collectJdFormData() {
-    if (!_currentJdDraft || !_jdEditorPanelEl) return;
+    if (!_currentJdDraft || !_jdEditorPanelEl || _activeTab !== "jd_editor") return;
     var sections = _currentJdDraft.sections || {};
     var el;
     el = document.getElementById("jd-editor-your-team");
@@ -1056,7 +1080,6 @@
 
   function submitJdDraft() {
     collectJdFormData();
-    // Save current edits first, then finalize
     var payload = JSON.parse(JSON.stringify(_currentJdDraft));
     delete payload._meta;
     fetch("/api/jd/drafts", {
@@ -1084,37 +1107,76 @@
       });
   }
 
-  function renderJdEditorPanel() {
-    if (!_jdEditorPanelEl || !_currentJdDraft) return;
+  // ---- Tab: Reference JDs ----
+  function renderReferenceJdsTab() {
+    var html = '';
 
-    var title = _currentJdDraft.title || "Untitled JD";
-    var department = _currentJdDraft.department || "";
-    var level = _currentJdDraft.level || "";
+    // Top section: reference JD list with checkboxes
+    html += '<div class="jd-ref-top-section">';
+
+    if (_similarJds.length === 0) {
+      html += '<div class="jd-editor-placeholder">No reference JDs available.</div>';
+    } else {
+      for (var i = 0; i < _similarJds.length; i++) {
+        var jd = _similarJds[i];
+        var jdId = jd.id || ("jd-" + i);
+        var isChecked = _selectedRefJds[jdId] !== false;
+        var score = jd.similarity_score || 0;
+        var scorePercent = Math.round(score * 100) + "%";
+
+        html += '<div class="jd-ref-item">';
+        html += '  <label class="jd-ref-checkbox"><input type="checkbox" data-jd-ref-id="' + esc(jdId) + '"' + (isChecked ? ' checked' : '') + '></label>';
+        html += '  <a href="#" class="jd-ref-link" data-jd-editor-action="view-ref" data-jd-ref-index="' + i + '">' + esc(jd.title || "Untitled") + '</a>';
+        html += '  <span class="jd-ref-score">' + scorePercent + '</span>';
+        html += '</div>';
+      }
+      html += '<div class="jd-ref-description">A new JD will be generated by referencing above similar jobs</div>';
+      html += '<button class="btn-submit" data-jd-editor-action="generate-jd" style="width:100%;margin-top:8px">Generate JD</button>';
+    }
+
+    html += '</div>'; // end top section
+
+    // Bottom section: view selected reference JD read-only
+    html += '<div class="jd-ref-bottom-section">';
+    if (_viewingRefJd) {
+      var sections = _viewingRefJd.sections || {};
+      html += '<div class="jd-ref-viewing-title" style="font-weight:600;font-size:14px;margin-bottom:10px;color:#1f2937">' + esc(_viewingRefJd.title || "Untitled") + '</div>';
+
+      if (sections.your_team) {
+        html += '<div class="jd-ref-section-title">Your Team</div>';
+        html += '<div class="jd-text-block">' + esc(sections.your_team) + '</div>';
+      }
+      if (sections.your_role) {
+        html += '<div class="jd-ref-section-title" style="margin-top:12px">Your Role</div>';
+        html += '<div class="jd-text-block" style="white-space:pre-line">' + esc(sections.your_role) + '</div>';
+      }
+      if (sections.your_expertise) {
+        html += '<div class="jd-ref-section-title" style="margin-top:12px">Your Expertise</div>';
+        html += '<div class="jd-text-block" style="white-space:pre-line">' + esc(sections.your_expertise) + '</div>';
+      }
+    } else {
+      html += '<div class="jd-editor-placeholder">Click a JD above to view details</div>';
+    }
+    html += '</div>'; // end bottom section
+
+    return html;
+  }
+
+  // ---- Tab: JD Editor ----
+  function renderJdEditorTab() {
+    var html = '';
+
+    if (!_currentJdDraft) {
+      html += '<div class="jd-editor-placeholder">Click Generate JD to create a draft</div>';
+      return html;
+    }
+
     var sections = _currentJdDraft.sections || {};
     var meta = _currentJdDraft._meta || {};
     var isFinalized = meta.finalized === true;
 
-    var html = '';
-
-    // Header
-    html += '<div class="profile-panel-header">';
-    html += '  <div style="display:flex;justify-content:space-between;align-items:center">';
-    html += '    <h2 style="margin:0;font-size:16px;font-weight:600;color:#1f2937">JD Editor</h2>';
-    html += '    <button class="profile-panel-close" data-jd-editor-action="close" title="Close">&times;</button>';
-    html += '  </div>';
-    if (isFinalized) {
-      html += '  <div class="profile-score-badge" style="background:#d1fae5;color:#065f46">Finalized</div>';
-    }
-    html += '</div>';
-
-    // Title / dept / level
-    html += '<div class="profile-readonly-info">';
-    html += '  <div class="info-name">' + esc(title) + '</div>';
-    if (department) html += '  <div class="info-detail">' + esc(department) + (level ? ' — ' + esc(level) : '') + '</div>';
-    html += '</div>';
-
     // Scrollable body with textareas
-    html += '<div class="profile-panel-body">';
+    html += '<div class="profile-panel-body" style="flex:1;overflow-y:auto">';
 
     html += '<div class="profile-section">';
     html += '<div class="profile-section-title">Your Team</div>';
@@ -1133,7 +1195,7 @@
 
     html += '</div>'; // end body
 
-    // Footer
+    // Footer with version nav and save/submit
     html += '<div class="profile-panel-footer">';
 
     if (_jdEditorDrafts.length > 0) {
@@ -1164,13 +1226,58 @@
 
     html += '</div>'; // end footer
 
+    return html;
+  }
+
+  // ---- Main render ----
+  function renderJdEditorPanel() {
+    if (!_jdEditorPanelEl) return;
+
+    var html = '';
+
+    // Header
+    html += '<div class="profile-panel-header">';
+    html += '  <div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '    <h2 style="margin:0;font-size:16px;font-weight:600;color:#1f2937">JD Editor</h2>';
+    html += '    <button class="profile-panel-close" data-jd-editor-action="close" title="Close">&times;</button>';
+    html += '  </div>';
+    html += '</div>';
+
+    // Tab bar
+    html += '<div class="jd-editor-tab-bar">';
+    html += '  <button class="jd-editor-tab' + (_activeTab === "reference_jds" ? ' active' : '') + '" data-jd-editor-action="tab-reference-jds">Reference JDs</button>';
+    html += '  <button class="jd-editor-tab' + (_activeTab === "jd_editor" ? ' active' : '') + '" data-jd-editor-action="tab-jd-editor">JD Editor</button>';
+    html += '</div>';
+
+    // Tab content
+    html += '<div class="jd-editor-tab-content">';
+    if (_activeTab === "reference_jds") {
+      html += renderReferenceJdsTab();
+    } else {
+      html += renderJdEditorTab();
+    }
+    html += '</div>';
+
     _jdEditorPanelEl.innerHTML = html;
     attachJdEditorEvents();
   }
 
   function attachJdEditorEvents() {
     if (!_jdEditorPanelEl) return;
+
     _jdEditorPanelEl.addEventListener("click", function (e) {
+      // Handle reference JD link clicks (view-ref)
+      var refLink = e.target.closest("[data-jd-editor-action='view-ref']");
+      if (refLink) {
+        e.preventDefault();
+        var idx = parseInt(refLink.getAttribute("data-jd-ref-index"), 10);
+        if (!isNaN(idx) && idx >= 0 && idx < _similarJds.length) {
+          _viewingRefJd = _similarJds[idx];
+          renderJdEditorPanel();
+        }
+        return;
+      }
+
       var btn = e.target.closest("[data-jd-editor-action]");
       if (!btn) return;
       var action = btn.getAttribute("data-jd-editor-action");
@@ -1178,6 +1285,26 @@
       switch (action) {
         case "close":
           closeJdEditorPanel();
+          break;
+        case "tab-reference-jds":
+          if (_activeTab === "jd_editor") collectJdFormData();
+          _activeTab = "reference_jds";
+          renderJdEditorPanel();
+          break;
+        case "tab-jd-editor":
+          _activeTab = "jd_editor";
+          renderJdEditorPanel();
+          break;
+        case "generate-jd":
+          // Collect checked reference JD IDs
+          var checkedIds = [];
+          var checkboxes = _jdEditorPanelEl.querySelectorAll("[data-jd-ref-id]");
+          checkboxes.forEach(function (cb) {
+            if (cb.checked) checkedIds.push(cb.getAttribute("data-jd-ref-id"));
+          });
+          if (window.sendUserMessage) {
+            window.sendUserMessage("Generate JD based on selected references: " + checkedIds.join(", "));
+          }
           break;
         case "save-draft":
           saveJdDraft();
@@ -1199,6 +1326,14 @@
             loadJdDraftById(_jdEditorDrafts[_jdEditorDraftIndex].id);
           }
           break;
+      }
+    });
+
+    // Handle checkbox changes (update _selectedRefJds state)
+    _jdEditorPanelEl.addEventListener("change", function (e) {
+      var cb = e.target.closest("[data-jd-ref-id]");
+      if (cb) {
+        _selectedRefJds[cb.getAttribute("data-jd-ref-id")] = cb.checked;
       }
     });
   }
