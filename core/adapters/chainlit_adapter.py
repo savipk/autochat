@@ -175,15 +175,10 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
                 ))
 
     elif tool_name == "get_requisition":
-        req = tool_result.get("requisition", {})
-        if req:
+        reqs = tool_result.get("requisitions", [])
+        if reqs:
             elements.append(cl.CustomElement(name="RequisitionCard", props={
-                "job_title": req.get("job_title", ""),
-                "requisition_id": req.get("requisition_id", ""),
-                "business_function": req.get("business_function", ""),
-                "department": req.get("department", ""),
-                "level": req.get("level", ""),
-                "location": req.get("location", ""),
+                "requisitions": reqs,
             }))
 
     elif tool_name == "jd_search":
