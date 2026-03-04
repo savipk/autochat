@@ -348,7 +348,8 @@
     h += '<label style="font-size:12px;font-weight:500;color:#374151;margin-bottom:4px;display:block">Top Skills</label>';
     h += '<div class="profile-tags" id="tags-top-skills">';
     top.forEach(function (s, i) {
-      h += '<span class="profile-tag">' + esc(s) + '<span class="tag-remove" data-action="remove-top-skill" data-index="' + i + '">&times;</span></span>';
+      var name = typeof s === 'object' ? (s.name || JSON.stringify(s)) : s;
+      h += '<span class="profile-tag">' + esc(name) + '<span class="tag-remove" data-action="remove-top-skill" data-index="' + i + '">&times;</span></span>';
     });
     h += '</div>';
     h += '<div class="profile-add-row"><input id="add-top-skill-input" placeholder="Add skill..." /><button data-action="add-top-skill">Add</button></div>';
@@ -356,7 +357,8 @@
     h += '<label style="font-size:12px;font-weight:500;color:#374151;margin:10px 0 4px;display:block">Additional Skills</label>';
     h += '<div class="profile-tags" id="tags-additional-skills">';
     additional.forEach(function (s, i) {
-      h += '<span class="profile-tag">' + esc(s) + '<span class="tag-remove" data-action="remove-additional-skill" data-index="' + i + '">&times;</span></span>';
+      var name = typeof s === 'object' ? (s.name || JSON.stringify(s)) : s;
+      h += '<span class="profile-tag">' + esc(name) + '<span class="tag-remove" data-action="remove-additional-skill" data-index="' + i + '">&times;</span></span>';
     });
     h += '</div>';
     h += '<div class="profile-add-row"><input id="add-additional-skill-input" placeholder="Add skill..." /><button data-action="add-additional-skill">Add</button></div>';
@@ -405,8 +407,16 @@
     h += '<div class="profile-section-title">Role Preferences</div>';
     roles.forEach(function (r) {
       var rc = r.roleClassification || {};
+      var role = r.role || {};
+      var area = r.area || {};
+      // Primary label: roleClassification.description, fallback to role.businessTitle
+      var title = rc.description || role.businessTitle || "\u2014";
       h += '<div class="profile-group-item">';
-      h += '<div class="group-item-title">' + esc(rc.description || "\u2014") + '</div>';
+      h += '<div class="group-item-title">' + esc(title) + '</div>';
+      // Show area.description as subtitle if available
+      if (area.description) {
+        h += '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(area.description) + '</div>';
+      }
       (rc.children || []).forEach(function (c) {
         h += '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(c.description || "") + '</div>';
       });

@@ -28,7 +28,7 @@ from typing import Any
 
 import chainlit as cl
 
-from core.profile_score import compute_completion_score
+from core.profile_score import compute_completion_score, normalize_profile
 
 logger = logging.getLogger("chatbot.adapter")
 
@@ -65,8 +65,9 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
             # Load current profile skills for display
             from core.profile import load_profile
             profile = load_profile()
+            normalize_profile(profile)
             core = profile.get("core", {})
-            current_skills = core.get("skills", {})
+            current_skills = core.get("skills") or {}
             current_top = current_skills.get("top", [])
             current_additional = current_skills.get("additional", [])
             # Normalize to name strings for the card
@@ -236,54 +237,132 @@ async def render_interrupt_elements(
         for req in action_requests:
             tool_name = req.get("name", "")
             args = req.get("args", {})
-            if tool_name != "update_profile":
-                continue
 
-            section = args.get("section", "skills")
-            updates = args.get("updates", {})
+            if tool_name == "update_profile":
+                section = args.get("section", "skills")
+                updates = args.get("updates", {})
 
-            # Normalize flat skills list (mirrors update_profile logic)
-            if section == "skills" and "skills" in updates and isinstance(updates["skills"], list):
-                flat = updates["skills"]
-                updates = {
-                    "topSkills": flat[:3],
-                    "additionalSkills": flat[3:],
-                }
+                # Normalize flat skills list (mirrors update_profile logic)
+                if section == "skills" and "skills" in updates and isinstance(updates["skills"], list):
+                    flat = updates["skills"]
+                    updates = {
+                        "topSkills": flat[:3],
+                        "additionalSkills": flat[3:],
+                    }
 
-            # Compute before/after completion scores
-            profile = load_profile(profile_path or None)
-            prev_score = compute_completion_score(profile)
+                # Compute before/after completion scores
+                profile = load_profile(profile_path or None)
+                normalize_profile(profile)
+                prev_score = compute_completion_score(profile)
 
-            simulated = _simulate_update(profile, section, updates)
-            new_score = compute_completion_score(simulated)
+                simulated = _simulate_update(profile, section, updates)
+                new_score = compute_completion_score(simulated)
 
-            # Current section data for before/after diff
-            from core.profile_schema import resolve_section
-            core = profile.get("core", {})
-            info = resolve_section(section)
-            current_values = {}
-            if info:
-                current_values = core.get(info.storage_key, {})
+                # Current section data for before/after diff
+                from core.profile_schema import resolve_section
+                core = profile.get("core", {})
+                info = resolve_section(section)
+                current_values = {}
+                if info:
+                    current_values = core.get(info.storage_key, {})
 
-            payload = json.dumps({
-                "section": section,
-                "updates": updates,
-                "profile_path": profile_path,
-                "username": username,
-            })
-
-            elements.append(cl.CustomElement(
-                name="ProfileUpdateConfirmation",
-                props={
+                payload = json.dumps({
                     "section": section,
-                    "updated_fields": updates,
-                    "current_values": current_values,
-                    "previous_completion_score": prev_score,
-                    "estimated_new_score": new_score,
-                    "payload": payload,
-                },
-            ))
+                    "updates": updates,
+                    "profile_path": profile_path,
+                    "username": username,
+                })
+
+                elements.append(cl.CustomElement(
+                    name="ProfileUpdateConfirmation",
+                    props={
+                        "section": section,
+                        "updated_fields": updates,
+                        "current_values": current_values,
+                        "previous_completion_score": prev_score,
+                        "estimated_new_score": new_score,
+                        "payload": payload,
+                    },
+                ))
+
+            elif tool_name == "rollback_profile":
+                from core.profile_manager import ProfileManager
+
+                profile = load_profile(profile_path or None)
+                normalize_profile(profile)
+                prev_score = compute_completion_score(profile)
+
+                # Load most recent backup for the "proposed" side
+                backup_profile = {}
+                new_score = 0
+                if username and profile_path:
+                    mgr = ProfileManager(username=username, profile_path=profile_path)
+                    backup = mgr.get_latest_backup()
+                    if backup:
+                        backup_profile = backup
+                        normalize_profile(backup_profile)
+                        new_score = compute_completion_score(backup_profile)
+
+                # Build summary dicts for current vs backup
+                current_summary = _profile_summary(profile)
+                backup_summary = _profile_summary(backup_profile) if backup_profile else {}
+
+                payload = json.dumps({
+                    "section": "rollback",
+                    "updates": {},
+                    "profile_path": profile_path,
+                    "username": username,
+                })
+
+                elements.append(cl.CustomElement(
+                    name="ProfileUpdateConfirmation",
+                    props={
+                        "section": "rollback",
+                        "updated_fields": backup_summary,
+                        "current_values": current_summary,
+                        "previous_completion_score": prev_score,
+                        "estimated_new_score": new_score,
+                        "payload": payload,
+                    },
+                ))
+
     return elements
+
+
+def _profile_summary(profile: dict) -> dict:
+    """Build a compact summary of key profile sections for diff display."""
+    core = profile.get("core", {})
+    summary: dict[str, Any] = {}
+
+    # Experience
+    exp = core.get("experience", {})
+    experiences = exp.get("experiences", []) if isinstance(exp, dict) else []
+    if experiences:
+        summary["experience"] = [
+            f"{e.get('jobTitle', '?')} at {e.get('company', '?')}"
+            for e in experiences[:5]
+        ]
+
+    # Skills
+    skills = core.get("skills", {})
+    if isinstance(skills, dict):
+        top = skills.get("top", [])
+        additional = skills.get("additional", [])
+        top_names = [s["name"] if isinstance(s, dict) else str(s) for s in top]
+        add_names = [s["name"] if isinstance(s, dict) else str(s) for s in additional]
+        if top_names or add_names:
+            summary["skills"] = {"top": top_names, "additional": add_names}
+
+    # Education
+    qual = core.get("qualification", {})
+    educations = qual.get("educations", []) if isinstance(qual, dict) else []
+    if educations:
+        summary["education"] = [
+            f"{e.get('degree', '?')} at {e.get('institutionName', '?')}"
+            for e in educations[:5]
+        ]
+
+    return summary
 
 
 def _simulate_update(profile: dict, section: str, updates: dict) -> dict:
@@ -296,11 +375,14 @@ def _simulate_update(profile: dict, section: str, updates: dict) -> dict:
     from core.profile_schema import resolve_section
 
     sim = copy.deepcopy(profile)
+    normalize_profile(sim)
     core = sim.setdefault("core", {})
     info = resolve_section(section)
     storage_key = info.storage_key if info else section
 
     if section == "skills":
+        if core.get("skills") is None:
+            core["skills"] = {}
         core.setdefault("skills", {})
         if "topSkills" in updates:
             core["skills"]["top"] = updates["topSkills"]

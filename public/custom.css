@@ -7,7 +7,7 @@ div:has(> img.logo) {
 
 a:has(> img.logo)::after,
 div:has(> img.logo)::after {
-  content: "MyCareer";
+  content: "HR Assistant";
   font-size: 1.8rem;
   font-weight: 500;
   color: #000000;

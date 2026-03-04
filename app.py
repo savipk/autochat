@@ -262,17 +262,22 @@ async def approve_profile_update(action: cl.Action):
         pass
 
     cl.user_session.set("pending_interrupt", None)
-    await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
+    if section == "rollback":
+        await cl.Message(content="Profile restored from backup.").send()
+    else:
+        await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
 
 
 @cl.action_callback("reject_profile_update")
 async def reject_profile_update(action: cl.Action):
     """Decline a chat-agent-initiated profile change."""
     pending = cl.user_session.get("pending_interrupt")
+    section = ""
     if pending:
         agent_name = pending.get("agent_name", "mycareer")
         parent_thread_id = pending.get("thread_id", "")
         namespaced_id = f"{parent_thread_id}:{agent_name}"
+        section = pending.get("section", "")
         try:
             agent = registry.get(agent_name)
             await agent.resume(
@@ -282,7 +287,10 @@ async def reject_profile_update(action: cl.Action):
         except Exception:
             logger.debug("Failed to resume agent for rejection", exc_info=True)
         cl.user_session.set("pending_interrupt", None)
-    await cl.Message(content="Profile update declined. No changes were made.").send()
+    if section == "rollback":
+        await cl.Message(content="Rollback declined. No changes were made.").send()
+    else:
+        await cl.Message(content="Profile update declined. No changes were made.").send()
 
 
 # ============================================================================
@@ -333,7 +341,10 @@ async def _handle_pending_interrupt(user_text: str) -> bool | None:
             pass
 
         cl.user_session.set("pending_interrupt", None)
-        await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
+        if section == "rollback":
+            await cl.Message(content="Profile restored from backup.").send()
+        else:
+            await cl.Message(content=f"Profile updated: **{section}** section saved.").send()
         return True
 
     if normalised in _REJECT_PHRASES:
@@ -344,7 +355,10 @@ async def _handle_pending_interrupt(user_text: str) -> bool | None:
         except Exception:
             logger.debug("Failed to resume agent for chat-based rejection", exc_info=True)
         cl.user_session.set("pending_interrupt", None)
-        await cl.Message(content="Profile update declined. No changes were made.").send()
+        if section == "rollback":
+            await cl.Message(content="Rollback declined. No changes were made.").send()
+        else:
+            await cl.Message(content="Profile update declined. No changes were made.").send()
         return True
 
     # Unrelated message — auto-reject the pending interrupt to clean graph state,
@@ -447,6 +461,9 @@ async def on_message(message: cl.Message):
                     for ar in intr_value.get("action_requests", []):
                         if ar.get("name") == "update_profile":
                             intr_section = ar.get("args", {}).get("section", "profile")
+                            break
+                        elif ar.get("name") == "rollback_profile":
+                            intr_section = "rollback"
                             break
 
                     # Store interrupt metadata in session for resume

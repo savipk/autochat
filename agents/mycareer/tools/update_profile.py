@@ -22,7 +22,7 @@ from core.profile_schema import (
     validate_entry,
     validate_list_size,
 )
-from core.profile_score import compute_completion_score
+from core.profile_score import compute_completion_score, normalize_profile
 
 VALID_OPERATIONS = ("merge", "replace", "add_entry", "edit_entry", "remove_entry")
 
@@ -80,6 +80,8 @@ def _apply_skills_update(
             "additionalSkills": flat[3:],
         }
 
+    if core.get("skills") is None:
+        core["skills"] = {}
     core.setdefault("skills", {})
     existing_top = core["skills"].get("top", [])
     existing_additional = core["skills"].get("additional", [])
@@ -239,6 +241,7 @@ def run_update_profile(
 
     username, profile_path = _get_user_context()
     profile = load_profile(profile_path or None)
+    normalize_profile(profile)
     prev_score = compute_completion_score(profile)
 
     if not updates:

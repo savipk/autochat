@@ -177,7 +177,7 @@ def create_orchestrator_agent(
 
     config = AgentConfig(
         name="orchestrator",
-        description="Chat orchestrator that routes users to the right specialist agent.",
+        description="HR Assistant orchestrator that routes users to the right specialist agent.",
         llm=get_llm(),
         tools=worker_agents,
         system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
@@ -198,7 +198,7 @@ class OrchestratorProtocol(AgentProtocol):
     def __init__(self, agent: OrchestratorAgent):
         card = AgentCard(
             name="orchestrator",
-            description="Chat orchestrator -- routes to MyCareer or JD Generator agents",
+            description="HR Assistant -- routes to MyCareer or JD Generator agents",
             skills=[
                 AgentSkill(name="routing", description="Route messages to specialist agents", tags=["orchestration"]),
                 AgentSkill(name="career_search", description="Career search via MyCareer agent", tags=["career"]),

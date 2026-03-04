@@ -37,6 +37,7 @@ def create_mycareer_agent(checkpointer=None) -> BaseAgent:
             HumanInTheLoopMiddleware(
                 interrupt_on={
                     "update_profile": {"allowed_decisions": ["approve", "reject"]},
+                    "rollback_profile": {"allowed_decisions": ["approve", "reject"]},
                 },
             ),
         ],

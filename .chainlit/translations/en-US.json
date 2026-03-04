@@ -18,7 +18,7 @@
     },
     "auth": {
         "login": {
-            "title": "MyCareer GenAI Assistant",
+            "title": "HR Assistant",
             "form": {
                 "email": {
                     "label": "Username",

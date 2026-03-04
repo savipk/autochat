@@ -11,12 +11,40 @@ from typing import Any
 
 from core.profile_schema import SECTION_REGISTRY
 
+# Sections that may exist at root level in real profiles (e.g. miro_profile)
+# but need to be under profile["core"] for scoring and updates.
+_ROOT_SECTIONS = (
+    "experience", "qualification", "skills",
+    "careerAspirationPreference", "careerLocationPreference",
+    "careerRolePreference", "language",
+)
+
+
+def normalize_profile(profile: dict[str, Any]) -> None:
+    """Copy root-level sections into ``profile["core"]`` if missing there.
+
+    Real HR profiles (e.g. miro_profile.json) store sections at the root
+    level, not under ``core``.  The side panel's ``normalizeProfile()`` in
+    ``custom.js`` already does this for rendering — this is the Python
+    equivalent so scoring, updates, and adapter logic all see consistent data.
+
+    Mutates *profile* in place.
+    """
+    core = profile.setdefault("core", {})
+    for section in _ROOT_SECTIONS:
+        if section not in core and profile.get(section) is not None:
+            core[section] = profile[section]
+    if "completionScore" not in core and "completionScore" in profile:
+        core["completionScore"] = profile["completionScore"]
+
 
 def compute_completion_score(profile: dict[str, Any]) -> int:
     """Compute profile completion as a weighted percentage (0–100).
 
     Always reads from ``profile["core"]`` to handle properly structured profiles.
+    Normalizes root-level data into ``core`` first so that both layouts work.
     """
+    normalize_profile(profile)
     core = profile.get("core", {})
     total_weight = 0
     earned_weight = 0
@@ -54,6 +82,7 @@ def compute_completion_score(profile: dict[str, Any]) -> int:
 
 def compute_section_scores(profile: dict[str, Any]) -> dict[str, int]:
     """Return per-section scores (weight earned or 0)."""
+    normalize_profile(profile)
     core = profile.get("core", {})
     scores: dict[str, int] = {}
 

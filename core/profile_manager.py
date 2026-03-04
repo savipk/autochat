@@ -143,6 +143,20 @@ class ProfileManager:
             if f.startswith("profile_") and f.endswith(".json")
         )
 
+    def get_latest_backup(self) -> dict | None:
+        """Return the most recent backup profile dict without restoring it."""
+        backups = self.list_backups()
+        if not backups:
+            return None
+        latest = backups[-1]
+        backup_path = os.path.join(self._backups_dir, latest)
+        try:
+            with open(backup_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to read backup %s: %s", backup_path, e)
+            return None
+
     def submit(self, profile_data: dict) -> bool:
         """Persist profile to disk with file locking. Backs up current file first.
 

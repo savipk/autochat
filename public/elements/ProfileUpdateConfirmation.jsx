@@ -149,47 +149,44 @@ export default function ProfileUpdateConfirmation() {
         )
     }
 
-    const hasDiff = currentValues && Object.keys(currentValues).length > 0
+    const isRollback = section === "rollback"
+    const headerText = isRollback ? "Profile Rollback Request" : "Profile Update Request"
+    const subText = isRollback
+        ? "The assistant wants to restore your profile from backup"
+        : <>The assistant wants to update your <strong>{section}</strong> section</>
+    const hasCurrentData = currentValues && Object.keys(currentValues).length > 0
 
     return (
         <Card className="w-full max-w-lg">
             <CardHeader className="pb-2">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <UserPen className="h-4 w-4" />
-                    Profile Update Request
+                    {headerText}
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
-                    The assistant wants to update your <strong>{section}</strong> section
+                    {subText}
                 </p>
             </CardHeader>
             <CardContent className="space-y-3">
-                {hasDiff ? (
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <div className="text-xs font-medium text-muted-foreground mb-1">Current</div>
-                            <div className="bg-muted/50 rounded p-2">
-                                {renderSectionData(section, currentValues)}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs font-medium mb-1" style={{ color: "#6264A7" }}>
-                                Proposed
-                            </div>
-                            <div className="rounded p-2 border" style={{ borderColor: "#6264A7" }}>
-                                {renderSectionData(section, updatedFields)}
-                            </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">Current</div>
+                        <div className="bg-muted/50 rounded p-2">
+                            {hasCurrentData
+                                ? renderSectionData(section, currentValues)
+                                : <span className="text-xs text-muted-foreground italic">No current data</span>
+                            }
                         </div>
                     </div>
-                ) : (
                     <div>
                         <div className="text-xs font-medium mb-1" style={{ color: "#6264A7" }}>
-                            Proposed Changes
+                            {isRollback ? "Backup (Restore To)" : "Proposed"}
                         </div>
                         <div className="rounded p-2 border" style={{ borderColor: "#6264A7" }}>
                             {renderSectionData(section, updatedFields)}
                         </div>
                     </div>
-                )}
+                </div>
 
                 {(previousScore > 0 || estimatedScore > 0) && (
                     <div className="text-xs text-muted-foreground flex items-center gap-1">
