@@ -10,8 +10,9 @@ from langchain_core.tools import tool
 
 @tool
 def get_requisition(requisition_id: str | None = None) -> dict:
-    """Retrieves an open job requisition from the system. If no requisition_id
-    is provided, returns the first open requisition."""
+    """Retrieves open job requisitions from the system. If a requisition_id
+    is provided, returns that specific requisition. Otherwise returns all
+    open requisitions for the hiring manager to choose from."""
     return run_get_requisition(requisition_id)
 
 
@@ -35,12 +36,12 @@ def run_get_requisition(requisition_id: str | None = None) -> dict:
     if requisition_id:
         for req in requisitions:
             if req.get("requisition_id") == requisition_id:
-                return {"success": True, "requisition": req}
+                return {"success": True, "requisitions": [req]}
         return {"success": False, "error": f"Requisition {requisition_id} not found."}
 
-    # Return first open requisition
-    for req in requisitions:
-        if req.get("status") == "open":
-            return {"success": True, "requisition": req}
+    # Return all open requisitions
+    open_reqs = [req for req in requisitions if req.get("status") == "open"]
+    if not open_reqs:
+        return {"success": False, "error": "No open requisitions found."}
 
-    return {"success": False, "error": "No open requisitions found."}
+    return {"success": True, "requisitions": open_reqs}

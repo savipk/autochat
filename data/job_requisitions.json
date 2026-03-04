@@ -12,6 +12,32 @@
       "location": "New York",
       "team_size": "8-12",
       "key_focus": "building innovative AI solutions for HR processes"
+    },
+    {
+      "requisition_id": "REQ-456789",
+      "job_title": "Product Manager, AI Platform",
+      "business_function": "HRCS",
+      "department": "Product",
+      "level": "Executive Director",
+      "status": "open",
+      "created_by": "Sarah Chen",
+      "created_at": "2026-02-20",
+      "location": "London",
+      "team_size": "5-8",
+      "key_focus": "driving product strategy for the firm's internal AI platform"
+    },
+    {
+      "requisition_id": "REQ-789012",
+      "job_title": "Data Privacy Analyst",
+      "business_function": "Risk & Compliance",
+      "department": "Legal & Compliance",
+      "level": "Associate",
+      "status": "open",
+      "created_by": "Michael Rivera",
+      "created_at": "2026-03-01",
+      "location": "Singapore",
+      "team_size": "3-5",
+      "key_focus": "ensuring data privacy compliance across AI and analytics initiatives"
     }
   ]
 }
