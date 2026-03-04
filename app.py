@@ -436,7 +436,7 @@ async def on_message(message: cl.Message):
                             try:
                                 jd_mgr = JDDraftManager(username)
                                 jd_mgr.save_draft(_tool_result)
-                                push_panel_event(username, "open_jd_editor")
+                                push_panel_event(username, "refresh_jd_editor")
                             except Exception:
                                 logger.debug("Failed to save JD draft", exc_info=True)
                     elif tool_name == "section_editor":

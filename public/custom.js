@@ -1021,8 +1021,16 @@
 
   function refreshJdEditorFromServer() {
     // Called on SSE refresh_jd_editor — reload latest draft and switch to editor tab
-    if (!_jdEditorPanelOpen) return;
     _activeTab = "jd_editor";
+    if (!_jdEditorPanelOpen) {
+      // Panel not open yet (e.g. user typed "generate JD" directly in chat)
+      if (!_jdEditorPanelEl) createJdEditorPanel();
+      closePanel();
+      closeJdPanel();
+      _jdEditorPanelOpen = true;
+      _jdEditorPanelEl.classList.add("open");
+      document.getElementById("root").classList.add("autochat-jd-editor-panel-open");
+    }
     loadLatestJdDraft();
   }
 
