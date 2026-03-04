@@ -2,6 +2,9 @@
 MyCareer-specific middleware.
 """
 
+import threading
+import time
+
 from langchain.agents.middleware import dynamic_prompt, wrap_tool_call
 from langchain_core.messages import ToolMessage
 
@@ -9,8 +12,12 @@ from core.config import PROFILE_LOW_COMPLETION_THRESHOLD
 from core.profile import load_profile
 from core.middleware.user_identity import get_user_identity
 
-# Maps thread_id → completion_score; populated on first touch per thread.
-_thread_analysis: dict[str, int] = {}
+# Thread-safe cache: maps thread_id → (score, timestamp)
+_thread_analysis: dict[str, tuple[int, float]] = {}
+_thread_analysis_lock = threading.Lock()
+
+# Cache TTL in seconds (5 minutes)
+_CACHE_TTL = 300
 
 
 def clear_profile_cache(thread_id: str | None = None):
@@ -19,10 +26,30 @@ def clear_profile_cache(thread_id: str | None = None):
     If *thread_id* is given, only that entry is removed. Otherwise, the
     entire cache is flushed (used when the side panel submits).
     """
-    if thread_id:
-        _thread_analysis.pop(thread_id, None)
-    else:
-        _thread_analysis.clear()
+    with _thread_analysis_lock:
+        if thread_id:
+            _thread_analysis.pop(thread_id, None)
+        else:
+            _thread_analysis.clear()
+
+
+def _get_cached_score(thread_id: str) -> int | None:
+    """Return the cached score if it exists and hasn't expired."""
+    with _thread_analysis_lock:
+        entry = _thread_analysis.get(thread_id)
+        if entry is None:
+            return None
+        score, ts = entry
+        if time.monotonic() - ts > _CACHE_TTL:
+            del _thread_analysis[thread_id]
+            return None
+        return score
+
+
+def _set_cached_score(thread_id: str, score: int):
+    """Cache a score with the current timestamp."""
+    with _thread_analysis_lock:
+        _thread_analysis[thread_id] = (score, time.monotonic())
 
 
 def _get_context(request):
@@ -31,9 +58,11 @@ def _get_context(request):
 
 
 def _get_completion_score(thread_id: str, context) -> int | None:
-    """Return completion_score from the dict if available, else from context."""
-    if thread_id in _thread_analysis:
-        return _thread_analysis[thread_id]
+    """Return completion_score from the cache if available, else from context."""
+    if thread_id:
+        cached = _get_cached_score(thread_id)
+        if cached is not None:
+            return cached
     return getattr(context, "completion_score", None) if context else None
 
 
@@ -48,12 +77,12 @@ async def first_touch_profile_middleware(request):
     thread_id = getattr(context, "thread_id", "") if context else ""
     base = request.system_prompt or ""
 
-    if thread_id and thread_id not in _thread_analysis:
+    if thread_id and _get_cached_score(thread_id) is None:
         from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
 
         analysis = run_profile_analyzer()
         score = analysis.get("completionScore", 100)
-        _thread_analysis[thread_id] = score
+        _set_cached_score(thread_id, score)
 
         missing = analysis.get("missingSections", [])
         insights = analysis.get("insights", [])

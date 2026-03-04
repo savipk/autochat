@@ -1,7 +1,18 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, AlertCircle, Plus } from "lucide-react"
+
+const SECTION_ACTIONS = {
+    experience: "Add an experience to my profile",
+    qualification: "Add education to my profile",
+    skills: "Analyze my skills",
+    careerAspirationPreference: "Update my career aspirations",
+    careerLocationPreference: "Update my location preferences",
+    careerRolePreference: "Update my role preferences",
+    language: "Add a language to my profile",
+}
 
 export default function ProfileScore() {
     const completionScore = props.completionScore || 0
@@ -17,6 +28,13 @@ export default function ProfileScore() {
         { key: "careerRolePreference", label: "Role Preference", max: 10 },
         { key: "language", label: "Languages", max: 10 },
     ]
+
+    function handleAddSection(key) {
+        const message = SECTION_ACTIONS[key]
+        if (message) {
+            sendUserMessage(message)
+        }
+    }
 
     return (
         <Card className="w-full max-w-md">
@@ -51,9 +69,20 @@ export default function ProfileScore() {
                                 <span className="text-muted-foreground text-xs">
                                     {score}/{max}
                                 </span>
-                                {isMissing && (
-                                    <Badge variant="outline" className="text-xs text-destructive">
-                                        Missing
+                                {isMissing ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-xs rounded"
+                                        style={{ color: "#6264A7" }}
+                                        onClick={() => handleAddSection(key)}
+                                    >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Add
+                                    </Button>
+                                ) : (
+                                    <Badge variant="outline" className="text-xs text-primary">
+                                        Done
                                     </Badge>
                                 )}
                             </div>

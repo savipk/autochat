@@ -2,17 +2,22 @@ import { useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { Sparkles, Save, Check } from "lucide-react"
 
 export default function SkillsCard() {
     const topSkills = props.topSkills || []
     const additionalSkills = props.additionalSkills || []
     const confidence = props.confidence || 0
+    const currentTopSkills = props.currentTopSkills || []
+    const currentAdditionalSkills = props.currentAdditionalSkills || []
 
     const [selectedTop, setSelectedTop] = useState(() => new Set())
     const [selectedAdditional, setSelectedAdditional] = useState(() => new Set())
     const [customInput, setCustomInput] = useState("")
     const [isSaved, setIsSaved] = useState(false)
+
+    const hasCurrentSkills = currentTopSkills.length > 0 || currentAdditionalSkills.length > 0
 
     function toggleSkill(skill, selected, setSelected) {
         const next = new Set(selected)
@@ -69,6 +74,38 @@ export default function SkillsCard() {
                 </p>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasCurrentSkills && (
+                    <div className="bg-muted/50 rounded p-2 space-y-1.5">
+                        <div className="text-xs font-medium text-muted-foreground">Currently on Profile</div>
+                        {currentTopSkills.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                                {currentTopSkills.map((skill) => (
+                                    <Badge
+                                        key={skill}
+                                        variant="secondary"
+                                        className="text-xs"
+                                    >
+                                        {skill}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                        {currentAdditionalSkills.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                                {currentAdditionalSkills.map((skill) => (
+                                    <Badge
+                                        key={skill}
+                                        variant="outline"
+                                        className="text-xs"
+                                    >
+                                        {skill}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {topSkills.length > 0 && (
                     <div>
                         <div className="text-xs text-muted-foreground mb-2">Top Skills</div>

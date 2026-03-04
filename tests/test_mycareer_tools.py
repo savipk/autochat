@@ -13,6 +13,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 EMPTY_PROFILE = {"core": {"name": {"businessFirstName": "Test", "businessLastName": "User"}}}
 
+WELL_STRUCTURED_PROFILE = {
+    "core": {
+        "name": {"businessFirstName": "Test", "businessLastName": "User"},
+        "experience": {"experiences": [{"id": "e1", "jobTitle": "Engineer", "company": "Acme", "startDate": "2020-01-01"}]},
+        "qualification": {"educations": [{"id": "q1", "institutionName": "MIT", "degree": "BS CS"}]},
+        "skills": {"top": [{"id": "s1", "name": "Python", "source": "AI_INFERRED"}], "additional": [{"id": "s2", "name": "Docker", "source": "MANUAL"}]},
+        "careerAspirationPreference": {"preferredAspirations": [{"code": "x", "description": "Leadership"}]},
+        "careerLocationPreference": {"preferredRelocationRegions": [{"code": "US", "description": "United States"}]},
+        "careerRolePreference": {"preferredRoles": [{"code": "dev", "description": "Developer"}]},
+        "language": {"languages": [{"id": "l1", "language": {"code": "en", "description": "English"}, "proficiency": {"code": "FLUENT", "description": "Fluent"}}]},
+    }
+}
+
 
 @pytest.fixture
 def empty_profile_path(tmp_path, monkeypatch):
@@ -24,12 +37,39 @@ def empty_profile_path(tmp_path, monkeypatch):
     return str(path)
 
 
+@pytest.fixture
+def full_profile_path(tmp_path, monkeypatch):
+    """Write a well-structured full profile and point PROFILE_PATH at it."""
+    path = tmp_path / "full_profile.json"
+    path.write_text(json.dumps(WELL_STRUCTURED_PROFILE))
+    import core.profile
+    monkeypatch.setattr(core.profile, "PROFILE_PATH", str(path))
+    return str(path)
+
+
+@pytest.fixture
+def mock_user_context(tmp_path, monkeypatch):
+    """Mock user context + write a profile so update_profile can persist."""
+    path = tmp_path / "profile.json"
+    path.write_text(json.dumps(WELL_STRUCTURED_PROFILE))
+    import core.profile
+    monkeypatch.setattr(core.profile, "PROFILE_PATH", str(path))
+
+    import agents.mycareer.tools.update_profile  # noqa: F401
+    umod = sys.modules["agents.mycareer.tools.update_profile"]
+    monkeypatch.setattr(umod, "_get_user_context", lambda: ("testuser", str(path)))
+
+    import core.profile_manager
+    monkeypatch.setattr(core.profile_manager, "DRAFTS_BASE_DIR", str(tmp_path / "drafts"))
+    return str(path)
+
+
 class TestProfileAnalyzer:
     def _run(self, **kwargs):
         from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
         return run_profile_analyzer(**kwargs)
 
-    def test_full_profile_scores_high(self):
+    def test_full_profile_scores_high(self, full_profile_path):
         result = self._run()
         assert result["success"] is True
         assert result["completionScore"] >= 80
@@ -52,37 +92,37 @@ class TestUpdateProfile:
         from agents.mycareer.tools.update_profile import run_update_profile
         return run_update_profile(**kwargs)
 
-    def test_update_skills_default(self):
+    def test_update_skills_default(self, mock_user_context):
         result = self._run()
         assert result["success"] is True
         assert result["section"] == "skills"
         assert "A2A" in result["updated_fields"]["topSkills"]
 
-    def test_unsupported_section(self):
+    def test_unsupported_section(self, mock_user_context):
         result = self._run(section="bogus_section")
         assert result["success"] is False
         assert "not yet supported" in result["error"]
 
-    def test_experience_section_supported(self):
+    def test_experience_section_supported(self, mock_user_context):
         updates = {"experiences": [{"jobTitle": "Engineer", "company": "Acme"}]}
         result = self._run(section="experience", updates=updates)
         assert result["success"] is True
         assert result["section"] == "experience"
 
-    def test_language_section_supported(self):
+    def test_language_section_supported(self, mock_user_context):
         updates = {"languages": [{"language": {"description": "German"}, "proficiency": {"description": "Native"}}]}
         result = self._run(section="language", updates=updates)
         assert result["success"] is True
         assert result["section"] == "language"
 
-    def test_update_skills_with_specific_list(self):
+    def test_update_skills_with_specific_list(self, mock_user_context):
         skills = ["Python", "Docker", "Kubernetes", "Terraform", "Go"]
         result = self._run(updates={"skills": skills})
         assert result["success"] is True
         assert result["updated_fields"]["topSkills"] == ["Python", "Docker", "Kubernetes"]
         assert result["updated_fields"]["additionalSkills"] == ["Terraform", "Go"]
 
-    def test_update_skills_with_empty_list(self):
+    def test_update_skills_with_empty_list(self, mock_user_context):
         result = self._run(updates={"skills": []})
         assert result["success"] is True
         assert result["updated_fields"]["topSkills"] == []

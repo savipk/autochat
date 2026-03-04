@@ -28,6 +28,8 @@ from typing import Any
 
 import chainlit as cl
 
+from core.profile_score import compute_completion_score
+
 logger = logging.getLogger("chatbot.adapter")
 
 
@@ -60,11 +62,28 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
         top = tool_result.get("topSkills", [])
         additional = tool_result.get("additionalSkills", [])
         if top or additional:
+            # Load current profile skills for display
+            from core.profile import load_profile
+            profile = load_profile()
+            core = profile.get("core", {})
+            current_skills = core.get("skills", {})
+            current_top = current_skills.get("top", [])
+            current_additional = current_skills.get("additional", [])
+            # Normalize to name strings for the card
+            current_top_names = [
+                s["name"] if isinstance(s, dict) else str(s) for s in current_top
+            ]
+            current_additional_names = [
+                s["name"] if isinstance(s, dict) else str(s) for s in current_additional
+            ]
+
             elements.append(cl.CustomElement(name="SkillsCard", props={
                 "topSkills": top,
                 "additionalSkills": additional,
                 "evidence": tool_result.get("evidence", []),
                 "confidence": tool_result.get("confidence", 0),
+                "currentTopSkills": current_top_names,
+                "currentAdditionalSkills": current_additional_names,
             }))
 
     elif tool_name == "send_message":
@@ -102,6 +121,16 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
             prev_score = tool_result.get("previous_completion_score", 0)
             new_score = tool_result.get("estimated_new_score", 0)
 
+            # Load current section data for before/after diff
+            from core.profile import load_profile
+            from core.profile_schema import resolve_section
+            profile = load_profile(tool_result.get("profile_path") or None)
+            core = profile.get("core", {})
+            info = resolve_section(section)
+            current_values = {}
+            if info:
+                current_values = core.get(info.storage_key, {})
+
             # Build payload for the action callbacks
             payload = json.dumps({
                 "section": section,
@@ -115,6 +144,7 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
                 props={
                     "section": section,
                     "updated_fields": updated,
+                    "current_values": current_values,
                     "previous_completion_score": prev_score,
                     "estimated_new_score": new_score,
                     "payload": payload,
@@ -222,10 +252,18 @@ async def render_interrupt_elements(
 
             # Compute before/after completion scores
             profile = load_profile(profile_path or None)
-            prev_score = _compute_completion_score(profile)
+            prev_score = compute_completion_score(profile)
 
             simulated = _simulate_update(profile, section, updates)
-            new_score = _compute_completion_score(simulated)
+            new_score = compute_completion_score(simulated)
+
+            # Current section data for before/after diff
+            from core.profile_schema import resolve_section
+            core = profile.get("core", {})
+            info = resolve_section(section)
+            current_values = {}
+            if info:
+                current_values = core.get(info.storage_key, {})
 
             payload = json.dumps({
                 "section": section,
@@ -239,6 +277,7 @@ async def render_interrupt_elements(
                 props={
                     "section": section,
                     "updated_fields": updates,
+                    "current_values": current_values,
                     "previous_completion_score": prev_score,
                     "estimated_new_score": new_score,
                     "payload": payload,
@@ -247,39 +286,37 @@ async def render_interrupt_elements(
     return elements
 
 
-def _compute_completion_score(profile: dict) -> int:
-    """Compute a simple completion score based on section presence."""
-    core = profile.get("core", {})
-    sections = {
-        "experience": bool((core.get("experience") or {}).get("experiences")),
-        "education": bool((core.get("qualification") or {}).get("educations")),
-        "skills": bool(core.get("skills", {}).get("top") or core.get("skills", {}).get("additional")),
-        "aspirations": bool((core.get("careerAspirationPreference") or {}).get("preferredAspirations")),
-        "location": bool(core.get("careerLocationPreference")),
-        "roles": bool((core.get("careerRolePreference") or {}).get("preferredRoles")),
-        "language": bool((core.get("language") or {}).get("languages")),
-    }
-    filled = sum(1 for v in sections.values() if v)
-    return round(filled / len(sections) * 100)
-
-
 def _simulate_update(profile: dict, section: str, updates: dict) -> dict:
-    """Return a copy of *profile* with *updates* applied (without persisting)."""
+    """Return a copy of *profile* with *updates* applied (without persisting).
+
+    Uses the schema registry to resolve storage keys so that aliases
+    (e.g. ``education`` → ``qualification``) are handled correctly.
+    """
     import copy
+    from core.profile_schema import resolve_section
+
     sim = copy.deepcopy(profile)
     core = sim.setdefault("core", {})
+    info = resolve_section(section)
+    storage_key = info.storage_key if info else section
+
     if section == "skills":
         core.setdefault("skills", {})
         if "topSkills" in updates:
             core["skills"]["top"] = updates["topSkills"]
         if "additionalSkills" in updates:
             core["skills"]["additional"] = updates["additionalSkills"]
-    elif section == "experience":
-        core["experience"] = updates
-    elif section == "education":
-        core["qualification"] = updates
+    elif info and info.list_field and info.list_field in updates:
+        # Merge new list entries into existing
+        existing = core.get(storage_key, {})
+        existing_items = existing.get(info.list_field, []) if isinstance(existing, dict) else []
+        new_items = updates[info.list_field]
+        if isinstance(new_items, list):
+            existing.setdefault(info.list_field, [])
+            existing[info.list_field] = existing_items + new_items
+        core[storage_key] = existing
     else:
-        core[section] = updates
+        core[storage_key] = updates
     return sim
 
 

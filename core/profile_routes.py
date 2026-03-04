@@ -107,6 +107,20 @@ async def submit_profile(
     return {"success": True}
 
 
+@router.post("/rollback")
+async def rollback_profile(
+    x_username: str = Header(...),
+    x_profile_path: str = Header(...),
+):
+    """Restore the profile from the most recent backup."""
+    mgr = _manager(x_username, x_profile_path)
+    restored = mgr.rollback()
+    if restored is None:
+        return {"success": False, "error": "No backups available."}
+    _clear_middleware_cache()
+    return {"success": True, "message": "Profile restored from backup."}
+
+
 @router.get("/poll-update")
 async def poll_update(x_username: str = Header(...)):
     """Check if the chat agent updated the profile. Clears flag on read."""
