@@ -2,25 +2,21 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 
-export default function RequisitionCard(props) {
+export default function RequisitionCard() {
     const [confirmed, setConfirmed] = useState(false)
 
-    const {
-        job_title = "",
-        requisition_id = "",
-        business_function = "",
-        department = "",
-        level = "",
-        location = "",
-    } = props
+    const job_title = props.job_title || ""
+    const requisition_id = props.requisition_id || ""
+    const business_function = props.business_function || ""
+    const department = props.department || ""
+    const level = props.level || ""
+    const location = props.location || ""
 
     function handleConfirm() {
         setConfirmed(true)
-        if (window.sendUserMessage) {
-            window.sendUserMessage(
-                `Confirmed requisition ${requisition_id} for ${job_title}`
-            )
-        }
+        sendUserMessage(
+            `Confirmed requisition ${requisition_id} for ${job_title}`
+        )
     }
 
     if (confirmed) {
