@@ -169,6 +169,10 @@ class ProfileManager:
         # Strip _meta
         clean = {k: v for k, v in profile_data.items() if k != "_meta"}
 
+        # Recalculate completion score before persisting
+        from core.profile_score import compute_completion_score
+        clean["completionScore"] = compute_completion_score(clean)
+
         # Write with exclusive file lock
         with open(self.profile_path, "w", encoding="utf-8") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -199,6 +203,10 @@ class ProfileManager:
         except (json.JSONDecodeError, OSError) as e:
             logger.error("Failed to read backup %s: %s", backup_path, e)
             return None
+
+        # Recalculate completion score for the restored profile
+        from core.profile_score import compute_completion_score
+        backup_data["completionScore"] = compute_completion_score(backup_data)
 
         # Write backup data as current profile (with locking)
         with open(self.profile_path, "w", encoding="utf-8") as f:

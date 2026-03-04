@@ -2,13 +2,16 @@
 Tests for core/profile_score.py — shared completion scoring.
 """
 
+import json
 import os
 import sys
+import tempfile
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from core.profile_manager import ProfileManager
 from core.profile_score import compute_completion_score, compute_section_scores, get_missing_sections, normalize_profile
 
 
@@ -177,3 +180,69 @@ class TestNormalizeProfile:
         normalize_profile(profile)
         score = compute_completion_score(profile)
         assert score == 100
+
+
+class TestProfileManagerRecalculatesScore:
+    """Verify ProfileManager.submit() and rollback() recalculate completionScore."""
+
+    def _make_manager(self, tmp_path):
+        profile_path = os.path.join(str(tmp_path), "profile.json")
+        return ProfileManager(username="testuser", profile_path=profile_path)
+
+    def test_submit_recalculates_score(self, tmp_path):
+        """submit() should compute a fresh completionScore before writing."""
+        mgr = self._make_manager(tmp_path)
+
+        # Profile with stale score of 0 but data that should yield 45
+        profile = {
+            "completionScore": 0,
+            "core": {
+                "experience": {"experiences": [{"jobTitle": "Eng"}]},
+                "skills": {"top": [{"name": "Python"}]},
+            },
+        }
+        mgr.submit(profile)
+
+        with open(mgr.profile_path, "r") as f:
+            saved = json.load(f)
+
+        assert saved["completionScore"] == 45
+
+    def test_submit_strips_meta(self, tmp_path):
+        """submit() should still strip _meta even with score recalculation."""
+        mgr = self._make_manager(tmp_path)
+        profile = {"_meta": {"draft_id": "x"}, "core": {}}
+        mgr.submit(profile)
+
+        with open(mgr.profile_path, "r") as f:
+            saved = json.load(f)
+
+        assert "_meta" not in saved
+
+    def test_rollback_recalculates_score(self, tmp_path):
+        """rollback() should compute a fresh completionScore for restored data."""
+        mgr = self._make_manager(tmp_path)
+
+        # Write an initial profile (this becomes the backup source)
+        initial = {
+            "completionScore": 0,
+            "core": {
+                "experience": {"experiences": [{"jobTitle": "Eng"}]},
+                "skills": {"top": [{"name": "Python"}]},
+            },
+        }
+        mgr.submit(initial)
+
+        # Now submit a different profile (backup of initial is created)
+        updated = {"completionScore": 0, "core": {}}
+        mgr.submit(updated)
+
+        # Rollback should restore initial data with recalculated score
+        restored = mgr.rollback()
+        assert restored is not None
+        assert restored["completionScore"] == 45
+
+        # Verify the file on disk also has the recalculated score
+        with open(mgr.profile_path, "r") as f:
+            on_disk = json.load(f)
+        assert on_disk["completionScore"] == 45
