@@ -209,6 +209,7 @@ __marimo__/
 .github/
 .files/
 data/*
+!data/matching_jobs.json
 .DS_Store
 data_dump/
 .cursor/
