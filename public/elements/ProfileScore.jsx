@@ -31,7 +31,7 @@ export default function ProfileScore() {
     function handleAddSection(key) {
         const message = SECTION_ACTIONS[key]
         if (message) {
-            sendUserMessage(message)
+            window.populateChatInput(message)
         }
     }
 

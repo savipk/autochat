@@ -47,7 +47,7 @@ export default function DraftMessage() {
                         size="sm"
                         className="text-xs font-medium rounded"
                         style={{ backgroundColor: "#6264A7", color: "#fff" }}
-                        onClick={() => sendUserMessage("Send the message")}
+                        onClick={() => window.populateChatInput("Send the message")}
                     >
                         <Send className="h-3.5 w-3.5 mr-1" />
                         Send
@@ -57,7 +57,7 @@ export default function DraftMessage() {
                         variant="outline"
                         className="text-xs font-medium rounded"
                         style={{ borderColor: "#6264A7", color: "#6264A7" }}
-                        onClick={() => sendUserMessage("Edit the message")}
+                        onClick={() => window.populateChatInput("Edit the message")}
                     >
                         <Edit className="h-3.5 w-3.5 mr-1" />
                         Edit

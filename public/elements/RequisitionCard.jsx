@@ -59,7 +59,7 @@ export default function RequisitionCard() {
 
     function handleSelect(req) {
         setSelectedId(req.requisition_id)
-        sendUserMessage(
+        window.populateChatInput(
             `Confirmed requisition ${req.requisition_id} for ${req.job_title}`
         )
     }

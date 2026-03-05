@@ -736,6 +736,15 @@
     }, 100);
   }
 
+  window.populateChatInput = function(text) {
+    var textarea = document.querySelector("textarea.cl-textarea, textarea[placeholder]");
+    if (!textarea) return;
+    var nativeSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
+    nativeSetter.call(textarea, text);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
+  };
+
   function formatTimestamp(ts) {
     if (!ts || ts.length < 13) return ts;
     var m = ts.substring(4, 6);
@@ -936,13 +945,13 @@
           closeJdPanel();
           break;
         case "draft-message":
-          chatSendMessage("Draft a message to the hiring manager for " + jobTitle + " (" + jobId + ")");
+          window.populateChatInput("Draft a message to the hiring manager for " + jobTitle + " (" + jobId + ")");
           break;
         case "apply":
-          chatSendMessage("Apply for the " + jobTitle + " role (" + jobId + ")");
+          window.populateChatInput("Apply for the " + jobTitle + " role (" + jobId + ")");
           break;
         case "ask-question":
-          chatSendMessage("I have a question about the " + jobTitle + " role (" + jobId + ")");
+          window.populateChatInput("I have a question about the " + jobTitle + " role (" + jobId + ")");
           break;
       }
     });
@@ -1320,7 +1329,7 @@
           checkboxes.forEach(function (cb) {
             if (cb.checked) checkedIds.push(cb.getAttribute("data-jd-ref-id"));
           });
-          chatSendMessage("Generate JD based on selected references: " + checkedIds.join(", "));
+          window.populateChatInput("Generate JD based on selected references: " + checkedIds.join(", "));
           break;
         case "save-draft":
           saveJdDraft();

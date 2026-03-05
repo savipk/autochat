@@ -126,7 +126,7 @@ function SingleJobCard({ job }) {
                         size="sm"
                         className="text-xs font-medium rounded"
                         style={{ backgroundColor: "#6264A7", color: "#fff" }}
-                        onClick={() => sendUserMessage(`View job details for ${title} (${jobId})`)}
+                        onClick={() => window.populateChatInput(`View job details for ${title} (${jobId})`)}
                     >
                         View
                     </Button>
@@ -135,7 +135,8 @@ function SingleJobCard({ job }) {
                         variant="outline"
                         className="text-xs font-medium rounded"
                         style={{ borderColor: "#6264A7", color: "#6264A7" }}
-                        onClick={() => sendUserMessage(`Save the ${title} role (${jobId}) to my favorites`)}
+                        onClick={() => window.populateChatInput(`Save the ${title} role (${jobId}) to my favorites`)}
+
                     >
                         Save
                     </Button>
@@ -185,7 +186,7 @@ export default function JobCard() {
                         variant="outline"
                         className="text-xs font-medium rounded"
                         style={{ borderColor: "#6264A7", color: "#6264A7" }}
-                        onClick={() => sendUserMessage("Show more matching jobs")}
+                        onClick={() => window.populateChatInput("Show more matching jobs")}
                     >
                         Show more
                     </Button>

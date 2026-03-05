@@ -44,7 +44,7 @@ export default function SkillsCard() {
         }
 
         if (all.length > 0) {
-            sendUserMessage(`Save these skills to my profile: ${all.join(", ")}`)
+            window.populateChatInput(`Save these skills to my profile: ${all.join(", ")}`)
         }
         setIsSaved(true)
     }
