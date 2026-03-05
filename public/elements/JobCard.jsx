@@ -35,6 +35,7 @@ function SingleJobCard({ job }) {
     const orgLine = job.orgLine || ""
     const country = job.country || ""
     const isNew = job.isNew || false
+    const isNewToUser = job.isNewToUser || false
     const daysAgo = job.daysAgo
     const matchReason = job.matchReason || ""
     const matchingSkills = job.matchingSkills || []
@@ -48,16 +49,26 @@ function SingleJobCard({ job }) {
 
     return (
         <Card className="relative flex flex-col" style={{ minWidth: 0, flex: "1 1 0" }}>
-            {isNew && (
-                <Badge
-                    className="absolute top-3 right-3 text-xs"
-                    style={{ backgroundColor: "#6264A7", color: "#fff" }}
-                >
-                    New
-                </Badge>
-            )}
+            <div className="absolute top-3 right-3 flex gap-1">
+                {isNewToUser && (
+                    <Badge
+                        className="text-xs"
+                        style={{ backgroundColor: "#00A4EF", color: "#fff" }}
+                    >
+                        New to you
+                    </Badge>
+                )}
+                {isNew && (
+                    <Badge
+                        className="text-xs"
+                        style={{ backgroundColor: "#6264A7", color: "#fff" }}
+                    >
+                        New
+                    </Badge>
+                )}
+            </div>
             <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold pr-12 leading-tight">
+                <CardTitle className="text-base font-semibold pr-24 leading-tight">
                     {title}
                 </CardTitle>
             </CardHeader>
@@ -148,16 +159,38 @@ function SingleJobCard({ job }) {
 
 export default function JobCard() {
     const jobs = props.jobs || []
+    const totalAvailable = props.totalAvailable
+    const hasMore = props.hasMore
 
     if (jobs.length === 0) {
         return null
     }
 
     return (
-        <div className="flex gap-4 w-full" style={{ maxWidth: "100%" }}>
-            {jobs.map((job, i) => (
-                <SingleJobCard key={job.id || i} job={job} />
-            ))}
+        <div className="space-y-3 w-full" style={{ maxWidth: "100%" }}>
+            {totalAvailable !== undefined && totalAvailable !== null && (
+                <div className="text-sm text-muted-foreground font-medium">
+                    Showing {jobs.length} of {totalAvailable} matches
+                </div>
+            )}
+            <div className="flex gap-4 w-full">
+                {jobs.map((job, i) => (
+                    <SingleJobCard key={job.id || i} job={job} />
+                ))}
+            </div>
+            {hasMore && (
+                <div className="flex justify-center pt-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs font-medium rounded"
+                        style={{ borderColor: "#6264A7", color: "#6264A7" }}
+                        onClick={() => sendUserMessage("Show more matching jobs")}
+                    >
+                        Show more
+                    </Button>
+                </div>
+            )}
         </div>
     )
 }

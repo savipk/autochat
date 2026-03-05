@@ -203,8 +203,8 @@ export default function ProfileUpdateConfirmation() {
 
                 <div className="flex gap-2 pt-1">
                     <Button
-                        className="flex-1 font-medium rounded"
-                        style={{ backgroundColor: "#6264A7", color: "#fff" }}
+                        className="flex-1 font-medium rounded hover:opacity-90"
+                        style={{ backgroundColor: "#6264A7", color: "#fff", border: "none" }}
                         onClick={handleAccept}
                     >
                         <Check className="h-4 w-4 mr-2" />
@@ -212,8 +212,8 @@ export default function ProfileUpdateConfirmation() {
                     </Button>
                     <Button
                         variant="outline"
-                        className="flex-1 font-medium rounded"
-                        style={{ borderColor: "#6264A7", color: "#6264A7" }}
+                        className="flex-1 font-medium rounded hover:opacity-90"
+                        style={{ borderColor: "#6264A7", color: "#6264A7", backgroundColor: "transparent" }}
                         onClick={handleDecline}
                     >
                         <X className="h-4 w-4 mr-2" />

@@ -162,6 +162,10 @@ class TestGetMatches:
         from agents.mycareer.tools.get_matches import run_get_matches
         return run_get_matches(**kwargs)
 
+    def setup_method(self):
+        from agents.mycareer.tools.get_matches import _reset_seen_jobs
+        _reset_seen_jobs()
+
     def test_returns_matches(self):
         result = self._run()
         assert result["success"] is True
@@ -174,6 +178,177 @@ class TestGetMatches:
             assert "title" in match
             assert "id" in match
             assert "daysAgo" in match
+
+    def test_sorted_by_match_score_descending(self):
+        result = self._run(top_k=15)
+        scores = [m["matchScore"] for m in result["matches"]]
+        assert scores == sorted(scores, reverse=True)
+
+    # --- Filter tests ---
+
+    def test_filter_by_country(self):
+        result = self._run(filters={"country": "India"})
+        assert result["success"] is True
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert "india" in m["country"].lower()
+
+    def test_filter_by_location(self):
+        result = self._run(filters={"location": "London"}, top_k=10)
+        assert result["success"] is True
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert "london" in m["location"].lower()
+
+    def test_filter_by_level(self):
+        result = self._run(filters={"level": "VP"}, top_k=10)
+        assert result["success"] is True
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert m["corporateTitleCode"] == "VP"
+
+    def test_filter_by_level_case_insensitive(self):
+        result = self._run(filters={"level": "vp"}, top_k=10)
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert m["corporateTitleCode"] == "VP"
+
+    def test_filter_by_orgline(self):
+        result = self._run(filters={"orgLine": "Risk & Compliance"}, top_k=10)
+        assert result["success"] is True
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert "risk & compliance" in m["orgLine"].lower()
+
+    def test_filter_by_department_alias(self):
+        result = self._run(filters={"department": "Investment Banking"}, top_k=10)
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert "investment banking" in m["orgLine"].lower()
+
+    def test_filter_by_skills(self):
+        result = self._run(filters={"skills": ["Python"]}, top_k=10)
+        assert result["success"] is True
+        assert result["count"] > 0
+        for m in result["matches"]:
+            assert any("python" in s.lower() for s in m["matchingSkills"])
+
+    def test_filter_by_min_score(self):
+        result = self._run(filters={"minScore": 2.5}, top_k=15)
+        assert result["success"] is True
+        for m in result["matches"]:
+            assert m["matchScore"] >= 2.5
+
+    def test_combined_filters(self):
+        result = self._run(filters={"country": "United Kingdom", "level": "ED"}, top_k=10)
+        assert result["success"] is True
+        for m in result["matches"]:
+            assert "united kingdom" in m["country"].lower()
+            assert m["corporateTitleCode"] == "ED"
+
+    def test_filter_zero_results(self):
+        result = self._run(filters={"country": "Antarctica"})
+        assert result["success"] is True
+        assert result["count"] == 0
+        assert result["total_available"] == 0
+        assert result["matches"] == []
+
+    def test_unknown_filter_key_ignored(self):
+        result = self._run(filters={"nonexistent_key": "value"})
+        assert result["success"] is True
+        assert result["count"] > 0
+
+    # --- Search tests ---
+
+    def test_search_single_term(self):
+        result = self._run(search_text="GenAI", top_k=10)
+        assert result["success"] is True
+        assert result["count"] >= 1
+
+    def test_search_multi_term(self):
+        result = self._run(search_text="data engineering", top_k=10)
+        assert result["success"] is True
+        assert result["count"] >= 1
+
+    def test_search_case_insensitive(self):
+        result = self._run(search_text="GENAI", top_k=10)
+        assert result["count"] >= 1
+
+    def test_search_in_requirements(self):
+        result = self._run(search_text="Kubernetes certification", top_k=10)
+        assert result["count"] >= 1
+
+    def test_search_zero_results(self):
+        result = self._run(search_text="xyznonexistent12345")
+        assert result["success"] is True
+        assert result["count"] == 0
+
+    def test_search_combined_with_filter(self):
+        result = self._run(filters={"country": "United Kingdom"}, search_text="platform", top_k=10)
+        assert result["success"] is True
+        for m in result["matches"]:
+            assert "united kingdom" in m["country"].lower()
+
+    # --- Pagination tests ---
+
+    def test_pagination_offset(self):
+        all_results = self._run(top_k=15)
+        page1 = self._run(top_k=3, offset=0)
+        page2 = self._run(top_k=3, offset=3)
+        assert page1["matches"][0]["id"] != page2["matches"][0]["id"]
+        assert page1["total_available"] == page2["total_available"]
+
+    def test_pagination_has_more(self):
+        result = self._run(top_k=3, offset=0)
+        assert result["has_more"] is True
+        assert result["total_available"] > 3
+
+    def test_pagination_last_page(self):
+        total = self._run(top_k=100)["total_available"]
+        result = self._run(top_k=100, offset=0)
+        assert result["has_more"] is False
+
+    def test_pagination_total_available(self):
+        result = self._run(top_k=3)
+        assert result["total_available"] >= result["count"]
+
+    # --- isNewToUser tests ---
+
+    def test_is_new_to_user_first_call(self):
+        result = self._run(thread_id="test_thread_1")
+        for m in result["matches"]:
+            assert m["isNewToUser"] is True
+
+    def test_is_new_to_user_second_call(self):
+        result1 = self._run(thread_id="test_thread_2")
+        first_ids = {m["id"] for m in result1["matches"]}
+        result2 = self._run(thread_id="test_thread_2")
+        for m in result2["matches"]:
+            if m["id"] in first_ids:
+                assert m["isNewToUser"] is False
+
+    def test_is_new_to_user_different_threads(self):
+        self._run(thread_id="thread_a")
+        result = self._run(thread_id="thread_b")
+        for m in result["matches"]:
+            assert m["isNewToUser"] is True
+
+    # --- Profile summary ---
+
+    def test_profile_summary_present(self):
+        result = self._run()
+        assert "profile_summary" in result
+        assert "name" in result["profile_summary"]
+        assert "topSkills" in result["profile_summary"]
+        assert "completionScore" in result["profile_summary"]
+
+    # --- Response fields ---
+
+    def test_response_contains_pagination_fields(self):
+        result = self._run()
+        assert "total_available" in result
+        assert "offset" in result
+        assert "has_more" in result
 
 
 class TestAskJdQa:

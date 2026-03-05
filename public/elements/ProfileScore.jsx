@@ -1,5 +1,4 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, AlertCircle, Plus } from "lucide-react"
@@ -47,7 +46,12 @@ export default function ProfileScore() {
                         {completionScore}%
                     </span>
                 </div>
-                <Progress value={completionScore} className="h-2 mt-2" />
+                <div className="h-2 mt-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${completionScore}%`, backgroundColor: "#6264A7" }}
+                    />
+                </div>
             </CardHeader>
             <CardContent className="space-y-2">
                 {sections.map(({ key, label, max }) => {
@@ -61,7 +65,7 @@ export default function ProfileScore() {
                                 {isMissing ? (
                                     <AlertCircle className="h-3.5 w-3.5" style={{ color: "#6264A7" }} />
                                 ) : (
-                                    <CheckCircle className="h-3.5 w-3.5 text-primary" />
+                                    <CheckCircle className="h-3.5 w-3.5" style={{ color: "#6264A7" }} />
                                 )}
                                 <span>{label}</span>
                             </div>
@@ -81,7 +85,7 @@ export default function ProfileScore() {
                                         Add
                                     </Button>
                                 ) : (
-                                    <Badge variant="outline" className="text-xs text-primary">
+                                    <Badge variant="outline" className="text-xs" style={{ borderColor: "#6264A7", color: "#6264A7" }}>
                                         Done
                                     </Badge>
                                 )}

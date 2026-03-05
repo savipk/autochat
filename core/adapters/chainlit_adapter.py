@@ -41,7 +41,14 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
     if tool_name == "get_matches":
         matches = tool_result.get("matches", [])
         if matches:
-            elements.append(cl.CustomElement(name="JobCard", props={"jobs": matches}))
+            job_card_props: dict[str, Any] = {"jobs": matches}
+            total_available = tool_result.get("total_available")
+            has_more = tool_result.get("has_more")
+            if total_available is not None:
+                job_card_props["totalAvailable"] = total_available
+            if has_more is not None:
+                job_card_props["hasMore"] = has_more
+            elements.append(cl.CustomElement(name="JobCard", props=job_card_props))
 
     elif tool_name == "profile_analyzer":
         elements.append(cl.CustomElement(name="ProfileScore", props={
