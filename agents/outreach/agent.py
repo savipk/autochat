@@ -1,5 +1,5 @@
 """
-MyCareer agent factory.
+Outreach agent factory.
 """
 
 from core.llm import get_llm
@@ -7,60 +7,48 @@ from core.state import BaseContext
 from core.agent.base import BaseAgent
 from core.agent.config import AgentConfig
 from core.agent.protocol import AgentProtocol, AgentCard, AgentSkill, Task, TaskResult, TaskState, TaskMessage
-from langchain.agents.middleware import HumanInTheLoopMiddleware
 from core.middleware.summarization import create_summarization_middleware
 from core.middleware.tool_monitor import tool_monitor_middleware
-from agents.mycareer.middleware import first_touch_profile_middleware, mycareer_personalization, profile_warning_middleware
-from agents.mycareer.prompts import MYCAREER_SYSTEM_PROMPT, MYCAREER_WELCOME_ADDENDUM
-from agents.mycareer.tools import ALL_TOOLS
+from agents.shared.middleware import employee_personalization
+from agents.outreach.prompts import OUTREACH_SYSTEM_PROMPT, OUTREACH_WELCOME_ADDENDUM
+from agents.outreach.tools import OUTREACH_TOOLS
 
 
-class MyCareerContext(BaseContext):
-    """Runtime context for MyCareer agent."""
-    completion_score: int = 100
+class OutreachContext(BaseContext):
+    """Runtime context for Outreach agent."""
 
 
-def create_mycareer_agent(checkpointer=None) -> BaseAgent:
-    """Create and return a configured MyCareer agent."""
+def create_outreach_agent(checkpointer=None) -> BaseAgent:
+    """Create and return a configured Outreach agent."""
     config = AgentConfig(
-        name="mycareer",
-        description="Internal career management assistant that helps employees find jobs, improve profiles, and connect with hiring managers.",
+        name="outreach",
+        description="Helps employees draft and send messages to hiring managers, and submit applications for internal roles.",
         llm=get_llm(),
-        tools=ALL_TOOLS,
-        system_prompt=MYCAREER_SYSTEM_PROMPT + MYCAREER_WELCOME_ADDENDUM,
+        tools=OUTREACH_TOOLS,
+        system_prompt=OUTREACH_SYSTEM_PROMPT + OUTREACH_WELCOME_ADDENDUM,
         middleware=[
             create_summarization_middleware(),
-            first_touch_profile_middleware,
-            mycareer_personalization,
-            profile_warning_middleware,
+            employee_personalization,
             tool_monitor_middleware,
-            HumanInTheLoopMiddleware(
-                interrupt_on={
-                    "update_profile": {"allowed_decisions": ["approve", "reject"]},
-                    "rollback_profile": {"allowed_decisions": ["approve", "reject"]},
-                },
-            ),
         ],
-        context_schema=MyCareerContext,
+        context_schema=OutreachContext,
         checkpointer=checkpointer,
-        context_factory=lambda thread_id: MyCareerContext(thread_id=thread_id),
+        context_factory=lambda thread_id: OutreachContext(thread_id=thread_id),
     )
     return BaseAgent(config)
 
 
-class MyCareerProtocol(AgentProtocol):
-    """A2A protocol implementation for MyCareer agent."""
+class OutreachProtocol(AgentProtocol):
+    """A2A protocol implementation for Outreach agent."""
 
     def __init__(self, agent: BaseAgent):
         card = AgentCard(
-            name="mycareer",
-            description="Internal career management assistant",
+            name="outreach",
+            description="Outreach assistant for employee communication",
             skills=[
-                AgentSkill(name="profile_management", description="Analyze and improve user profiles", tags=["profile"]),
-                AgentSkill(name="job_matching", description="Find matching internal job postings", tags=["jobs", "matching"]),
-                AgentSkill(name="job_qa", description="Answer questions about job postings", tags=["jobs", "qa"]),
-                AgentSkill(name="messaging", description="Draft and send messages to hiring managers", tags=["messaging"]),
-                AgentSkill(name="applications", description="Submit job applications", tags=["jobs", "apply"]),
+                AgentSkill(name="draft_message", description="Draft messages to hiring managers", tags=["messaging", "draft"]),
+                AgentSkill(name="send_message", description="Send drafted messages via Teams", tags=["messaging", "send"]),
+                AgentSkill(name="apply_for_role", description="Submit job applications", tags=["jobs", "apply"]),
             ],
         )
         super().__init__(card)
@@ -88,7 +76,7 @@ class MyCareerProtocol(AgentProtocol):
             metadata = dict(task.metadata) if task.metadata else {}
             if "thread_id" not in metadata:
                 metadata["thread_id"] = task.id
-            context = MyCareerContext(**metadata)
+            context = OutreachContext(**metadata)
             result = await self._agent.invoke(user_message, context=context)
             response_messages = result.get("messages", [])
             last_msg = response_messages[-1] if response_messages else None

@@ -1,5 +1,5 @@
 """
-Tests for agents/mycareer/tools/list_profile_entries.py
+Tests for agents/shared/tools/list_profile_entries.py
 """
 
 import json
@@ -68,7 +68,7 @@ def root_profile_path(tmp_path, monkeypatch):
 
 class TestListProfileEntries:
     def _run(self, section):
-        from agents.mycareer.tools.list_profile_entries import run_list_profile_entries
+        from agents.shared.tools.list_profile_entries import run_list_profile_entries
         return run_list_profile_entries(section)
 
     def test_list_experience_entries(self, profile_path):

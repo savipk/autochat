@@ -9,13 +9,19 @@ No other files need to change.
 """
 
 from core.agent.registry import AgentRegistry
-from agents.mycareer.agent import create_mycareer_agent
+from agents.profile.agent import create_profile_agent
+from agents.job_discovery.agent import create_job_discovery_agent
+from agents.outreach.agent import create_outreach_agent
+from agents.candidate_search.agent import create_candidate_search_agent
 from agents.jd_generator.agent import create_jd_agent
 
 
 def build_agent_catalog(checkpointer=None) -> AgentRegistry:
     """Build and return an ``AgentRegistry`` containing all configured agents."""
     registry = AgentRegistry()
-    registry.register(create_mycareer_agent(checkpointer=checkpointer))
+    registry.register(create_profile_agent(checkpointer=checkpointer))
+    registry.register(create_job_discovery_agent(checkpointer=checkpointer))
+    registry.register(create_outreach_agent(checkpointer=checkpointer))
+    registry.register(create_candidate_search_agent(checkpointer=checkpointer))
     registry.register(create_jd_agent(checkpointer=checkpointer))
     return registry

@@ -55,8 +55,8 @@ def mock_user_context(tmp_path, monkeypatch):
     import core.profile
     monkeypatch.setattr(core.profile, "PROFILE_PATH", str(path))
 
-    import agents.mycareer.tools.update_profile  # noqa: F401
-    umod = sys.modules["agents.mycareer.tools.update_profile"]
+    import agents.shared.tools.update_profile  # noqa: F401
+    umod = sys.modules["agents.shared.tools.update_profile"]
     monkeypatch.setattr(umod, "_get_user_context", lambda: ("testuser", str(path)))
 
     import core.profile_manager
@@ -66,7 +66,7 @@ def mock_user_context(tmp_path, monkeypatch):
 
 class TestProfileAnalyzer:
     def _run(self, **kwargs):
-        from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
+        from agents.shared.tools.profile_analyzer import run_profile_analyzer
         return run_profile_analyzer(**kwargs)
 
     def test_full_profile_scores_high(self, full_profile_path):
@@ -89,7 +89,7 @@ class TestProfileAnalyzer:
 
 class TestUpdateProfile:
     def _run(self, **kwargs):
-        from agents.mycareer.tools.update_profile import run_update_profile
+        from agents.shared.tools.update_profile import run_update_profile
         return run_update_profile(**kwargs)
 
     def test_update_skills_default(self, mock_user_context):
@@ -131,7 +131,7 @@ class TestUpdateProfile:
 
 class TestInferSkills:
     def _run(self, **kwargs):
-        from agents.mycareer.tools.infer_skills import run_infer_skills
+        from agents.shared.tools.infer_skills import run_infer_skills
         return run_infer_skills(**kwargs)
 
     def test_returns_skills(self):
@@ -159,11 +159,11 @@ class TestInferSkills:
 
 class TestGetMatches:
     def _run(self, **kwargs):
-        from agents.mycareer.tools.get_matches import run_get_matches
+        from agents.shared.tools.get_matches import run_get_matches
         return run_get_matches(**kwargs)
 
     def setup_method(self):
-        from agents.mycareer.tools.get_matches import _reset_seen_jobs
+        from agents.shared.tools.get_matches import _reset_seen_jobs
         _reset_seen_jobs()
 
     def test_returns_matches(self):
@@ -353,7 +353,7 @@ class TestGetMatches:
 
 class TestAskJdQa:
     def _run(self, *args, **kwargs):
-        from agents.mycareer.tools.ask_jd_qa import run_ask_jd_qa
+        from agents.shared.tools.ask_jd_qa import run_ask_jd_qa
         return run_ask_jd_qa(*args, **kwargs)
 
     def test_team_size_question(self):
@@ -376,7 +376,7 @@ class TestAskJdQa:
 
 class TestDraftMessage:
     def _run(self, **kwargs):
-        from agents.mycareer.tools.draft_message import run_draft_message
+        from agents.shared.tools.draft_message import run_draft_message
         return run_draft_message(**kwargs)
 
     def test_draft_with_profile(self):
@@ -389,7 +389,7 @@ class TestDraftMessage:
 
 class TestSendMessage:
     def _run(self, *args, **kwargs):
-        from agents.mycareer.tools.send_message import run_send_message
+        from agents.shared.tools.send_message import run_send_message
         return run_send_message(*args, **kwargs)
 
     def test_send_success(self):
@@ -401,7 +401,7 @@ class TestSendMessage:
 
 class TestApplyForRole:
     def _run(self, **kwargs):
-        from agents.mycareer.tools.apply_for_role import run_apply_for_role
+        from agents.shared.tools.apply_for_role import run_apply_for_role
         return run_apply_for_role(**kwargs)
 
     def test_apply_success(self):

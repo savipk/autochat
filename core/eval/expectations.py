@@ -8,7 +8,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-_ORCHESTRATOR_TOOL_NAMES = {"mycareer_agent", "jd_generator_agent"}
+_ORCHESTRATOR_TOOL_NAMES = {"profile_agent", "job_discovery_agent", "outreach_agent", "candidate_search_agent", "jd_generator_agent"}
 
 
 @dataclass

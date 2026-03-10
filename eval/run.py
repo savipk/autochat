@@ -66,7 +66,7 @@ class EvalAgentAdapter:
 
 def _get_agent_for_scenario(scenario: dict, checkpointer=None):
     """Build the agent specified by the scenario."""
-    agent_name = scenario.get("agent", "mycareer")
+    agent_name = scenario.get("agent", "profile")
     catalog = __import__("agents.catalog", fromlist=["build_agent_catalog"]).build_agent_catalog
     registry = catalog(checkpointer=checkpointer)
     agent = registry.get(agent_name)

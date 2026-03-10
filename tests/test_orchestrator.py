@@ -166,7 +166,7 @@ class TestBaseContext:
 
     def test_mycareer_inherits(self):
         from core.state import BaseContext
-        from agents.mycareer.agent import MyCareerContext
+        from agents.profile.agent import ProfileContext as MyCareerContext
         assert issubclass(MyCareerContext, BaseContext)
         ctx = MyCareerContext(thread_id="t-1", completion_score=72)
         assert ctx.thread_id == "t-1"

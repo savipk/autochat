@@ -61,8 +61,8 @@ def profile_path(tmp_path, monkeypatch):
 @pytest.fixture
 def mock_user_context(profile_path, monkeypatch):
     """Mock _get_user_context to return test values and patch ProfileManager."""
-    import agents.mycareer.tools.update_profile  # noqa: F401 — ensure module is loaded
-    umod = sys.modules["agents.mycareer.tools.update_profile"]
+    import agents.shared.tools.update_profile  # noqa: F401 — ensure module is loaded
+    umod = sys.modules["agents.shared.tools.update_profile"]
     monkeypatch.setattr(umod, "_get_user_context", lambda: ("testuser", profile_path))
 
     import core.profile_manager
@@ -71,7 +71,7 @@ def mock_user_context(profile_path, monkeypatch):
 
 
 def _run(**kwargs):
-    from agents.mycareer.tools.update_profile import run_update_profile
+    from agents.shared.tools.update_profile import run_update_profile
     return run_update_profile(**kwargs)
 
 
@@ -258,8 +258,8 @@ class TestSkillsNormalization:
 class TestPersistenceFailure:
     def test_no_user_context_fails(self, profile_path, monkeypatch):
         """Without user context, update should return success=False."""
-        import agents.mycareer.tools.update_profile  # noqa: F401
-        umod = sys.modules["agents.mycareer.tools.update_profile"]
+        import agents.shared.tools.update_profile  # noqa: F401
+        umod = sys.modules["agents.shared.tools.update_profile"]
         monkeypatch.setattr(umod, "_get_user_context", lambda: ("", ""))
 
         import core.profile

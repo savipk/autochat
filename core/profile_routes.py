@@ -232,9 +232,9 @@ def set_profile_updated(username: str):
 
 
 def _clear_middleware_cache():
-    """Clear the mycareer middleware thread analysis cache."""
+    """Clear the shared middleware thread analysis cache."""
     try:
-        from agents.mycareer.middleware import clear_profile_cache
+        from agents.shared.middleware import clear_profile_cache
         clear_profile_cache()
     except ImportError:
         logger.debug("Could not import clear_profile_cache")

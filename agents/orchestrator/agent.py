@@ -198,10 +198,13 @@ class OrchestratorProtocol(AgentProtocol):
     def __init__(self, agent: OrchestratorAgent):
         card = AgentCard(
             name="orchestrator",
-            description="HR Assistant -- routes to MyCareer or JD Generator agents",
+            description="HR Assistant -- routes to profile, job discovery, outreach, candidate search, and JD generator agents",
             skills=[
                 AgentSkill(name="routing", description="Route messages to specialist agents", tags=["orchestration"]),
-                AgentSkill(name="career_search", description="Career search via MyCareer agent", tags=["career"]),
+                AgentSkill(name="profile_management", description="Profile management via Profile agent", tags=["profile"]),
+                AgentSkill(name="job_discovery", description="Job discovery via Job Discovery agent", tags=["jobs"]),
+                AgentSkill(name="outreach", description="Outreach via Outreach agent", tags=["messaging"]),
+                AgentSkill(name="candidate_search", description="Candidate search via Candidate Search agent", tags=["candidates"]),
                 AgentSkill(name="jd_creation", description="JD creation via JD Generator agent", tags=["jd"]),
             ],
         )

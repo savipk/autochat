@@ -1,7 +1,7 @@
 {
   "name": "mycareer_skills_flow",
   "description": "SkillsCard interaction patterns: infer skills -> card save -> question a skill -> re-analyze -> chat-based save -> improve profile skills trigger",
-  "agent": "mycareer",
+  "agent": "profile",
   "profile_path": "data/miro_profile.json",
   "turns": [
     {

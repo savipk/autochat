@@ -1,5 +1,5 @@
 """
-MyCareer-specific middleware.
+Shared employee middleware — used by profile, job_discovery, and outreach agents.
 """
 
 import threading
@@ -10,6 +10,7 @@ from langchain_core.messages import ToolMessage
 
 from core.config import PROFILE_LOW_COMPLETION_THRESHOLD
 from core.profile import load_profile
+from core.profile_score import compute_completion_score
 from core.middleware.user_identity import get_user_identity
 
 # Thread-safe cache: maps thread_id → (score, timestamp)
@@ -78,7 +79,7 @@ async def first_touch_profile_middleware(request):
     base = request.system_prompt or ""
 
     if thread_id and _get_cached_score(thread_id) is None:
-        from agents.mycareer.tools.profile_analyzer import run_profile_analyzer
+        from agents.shared.tools.profile_analyzer import run_profile_analyzer
 
         analysis = run_profile_analyzer()
         score = analysis.get("completionScore", 100)
@@ -103,7 +104,7 @@ async def first_touch_profile_middleware(request):
 
 
 @dynamic_prompt
-async def mycareer_personalization(request):
+async def employee_personalization(request):
     """Appends user profile context to the system prompt at runtime."""
     profile = load_profile()
     if not profile:
@@ -131,6 +132,10 @@ async def mycareer_personalization(request):
     return (base + "\n" + "\n".join(parts)) if base else "\n".join(parts)
 
 
+# Keep old name as alias for backward compatibility with agents/shared/agent.py
+mycareer_personalization = employee_personalization
+
+
 @wrap_tool_call
 async def profile_warning_middleware(request, handler):
     """
@@ -145,7 +150,7 @@ async def profile_warning_middleware(request, handler):
         thread_id = getattr(context, "thread_id", "") if context else ""
         completion_score = _get_completion_score(thread_id, context)
         if completion_score is None:
-            completion_score = 100
+            completion_score = compute_completion_score(load_profile())
         if completion_score < PROFILE_LOW_COMPLETION_THRESHOLD:
             warning = (
                 "\n\nNote: Your profile is less than 50% complete. "

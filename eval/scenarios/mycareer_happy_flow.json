@@ -1,7 +1,7 @@
 {
   "name": "mycareer_happy_flow",
   "description": "Happy path through MyCareer agent: suggest skills -> update profile -> find matches -> ask JD Q&A (x2) -> draft message -> send message -> apply for role",
-  "agent": "mycareer",
+  "agent": "profile",
   "profile_path": "data/miro_profile.json",
   "turns": [
     {

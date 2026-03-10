@@ -218,6 +218,18 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
         # The panel is opened/refreshed via SSE events pushed from app.py.
         pass
 
+    elif tool_name == "search_candidates":
+        candidates = tool_result.get("candidates", [])
+        if candidates:
+            candidate_card_props: dict[str, Any] = {"candidates": candidates}
+            total_available = tool_result.get("total_available")
+            has_more = tool_result.get("has_more")
+            if total_available is not None:
+                candidate_card_props["totalAvailable"] = total_available
+            if has_more is not None:
+                candidate_card_props["hasMore"] = has_more
+            elements.append(cl.CustomElement(name="CandidateCard", props=candidate_card_props))
+
     return elements
 
 
@@ -406,13 +418,14 @@ def _simulate_update(profile: dict, section: str, updates: dict) -> dict:
     return sim
 
 
-ORCHESTRATOR_TOOL_NAMES = {"mycareer", "jd_generator"}
+ORCHESTRATOR_TOOL_NAMES = {"profile", "job_discovery", "outreach", "candidate_search", "jd_generator"}
 
 
 def extract_tool_calls_from_messages(messages: list) -> list[tuple[str, dict]]:
     """Extract tool name and result pairs from agent response messages.
 
-    For orchestrator-level agent tools (``mycareer_agent``,
+    For orchestrator-level agent tools (``profile_agent``,
+    ``job_discovery_agent``, ``outreach_agent``, ``candidate_search_agent``,
     ``jd_generator_agent``), the returned JSON contains a ``tool_calls``
     array with the specialist's inner tool results.  These are unwrapped so
     that ``render_tool_elements`` receives the inner tool names it expects

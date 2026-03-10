@@ -160,6 +160,11 @@ async def set_starters():
             icon="/public/idea.svg",
         ),
         cl.Starter(
+            label="Search for candidates",
+            message="Help me find candidates for my open role",
+            icon="/public/idea.svg",
+        ),
+        cl.Starter(
             label="Create a JD",
             message="I need to create a job description",
             icon="/public/idea.svg",
@@ -237,7 +242,7 @@ async def approve_profile_update(action: cl.Action):
         await cl.Message(content="No pending update to approve.").send()
         return
 
-    agent_name = pending.get("agent_name", "mycareer")
+    agent_name = pending.get("agent_name", "profile")
     parent_thread_id = pending.get("thread_id", "")
     namespaced_id = f"{parent_thread_id}:{agent_name}"
 
@@ -256,7 +261,7 @@ async def approve_profile_update(action: cl.Action):
 
     # Clear middleware cache
     try:
-        from agents.mycareer.middleware import clear_profile_cache
+        from agents.shared.middleware import clear_profile_cache
         clear_profile_cache()
     except ImportError:
         pass
@@ -274,7 +279,7 @@ async def reject_profile_update(action: cl.Action):
     pending = cl.user_session.get("pending_interrupt")
     section = ""
     if pending:
-        agent_name = pending.get("agent_name", "mycareer")
+        agent_name = pending.get("agent_name", "profile")
         parent_thread_id = pending.get("thread_id", "")
         namespaced_id = f"{parent_thread_id}:{agent_name}"
         section = pending.get("section", "")
@@ -312,7 +317,7 @@ async def _handle_pending_interrupt(user_text: str) -> bool | None:
     if not pending:
         return None
 
-    agent_name = pending.get("agent_name", "mycareer")
+    agent_name = pending.get("agent_name", "profile")
     parent_thread_id = pending.get("thread_id", "")
     namespaced_id = f"{parent_thread_id}:{agent_name}"
     section = pending.get("section", "profile")
@@ -335,7 +340,7 @@ async def _handle_pending_interrupt(user_text: str) -> bool | None:
         if username:
             set_profile_updated(username)
         try:
-            from agents.mycareer.middleware import clear_profile_cache
+            from agents.shared.middleware import clear_profile_cache
             clear_profile_cache()
         except ImportError:
             pass
