@@ -219,4 +219,5 @@ data_dump/
 *.md
 docs/N*
 !docs/diagrams/*.*
+!docs/architecture/*.*
 !data/job_requisitions.json
