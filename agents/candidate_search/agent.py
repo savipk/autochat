@@ -9,7 +9,7 @@ from core.agent.config import AgentConfig
 from core.agent.protocol import AgentProtocol, AgentCard, AgentSkill, Task, TaskResult, TaskState, TaskMessage
 from core.middleware.summarization import create_summarization_middleware
 from core.middleware.tool_monitor import tool_monitor_middleware
-from agents.candidate_search.middleware import candidate_search_personalization
+from agents.shared.middleware import hiring_manager_personalization
 from agents.candidate_search.prompts import CANDIDATE_SEARCH_SYSTEM_PROMPT, CANDIDATE_SEARCH_WELCOME_ADDENDUM
 from agents.candidate_search.tools import CANDIDATE_SEARCH_TOOLS
 
@@ -28,7 +28,7 @@ def create_candidate_search_agent(checkpointer=None) -> BaseAgent:
         system_prompt=CANDIDATE_SEARCH_SYSTEM_PROMPT + CANDIDATE_SEARCH_WELCOME_ADDENDUM,
         middleware=[
             create_summarization_middleware(),
-            candidate_search_personalization,
+            hiring_manager_personalization,
             tool_monitor_middleware,
         ],
         context_schema=CandidateSearchContext,

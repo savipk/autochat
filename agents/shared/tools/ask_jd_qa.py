@@ -2,7 +2,20 @@
 Ask JD Q&A tool -- Mocked implementation with two scenarios.
 """
 
+import json
+import os
+
 from langchain_core.tools import tool
+
+_JOBS_PATH = os.path.normpath(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "matching_jobs.json")
+))
+
+
+def _load_job(job_id: str) -> dict | None:
+    with open(_JOBS_PATH) as f:
+        jobs = json.load(f).get("jobs", [])
+    return next((j for j in jobs if j.get("id") == job_id), None)
 
 
 @tool
@@ -20,16 +33,20 @@ def run_ask_jd_qa(job_id: str, question: str) -> dict:
     if not question or not isinstance(question, str):
         return {"success": False, "error": "question is required and must be a non-empty string."}
 
-    question_lower = question.lower()
+    job = _load_job(job_id)
+    if not job:
+        return {"success": False, "error": f"Job {job_id} not found."}
 
     job_context = {
         "job_id": job_id,
-        "job_title": "GenAI Lead",
-        "hiring_manager": "Prasanth Jagannathan",
-        "org_line": "GWM COO Americas",
-        "location": "United States",
-        "level": "Executive Director"
+        "job_title": job.get("title", ""),
+        "hiring_manager": job.get("hiringManager", ""),
+        "org_line": job.get("orgLine", ""),
+        "location": job.get("location", ""),
+        "level": job.get("corporateTitle", ""),
     }
+
+    question_lower = question.lower()
 
     team_keywords = [
         "team size", "how many people", "how big is the team",

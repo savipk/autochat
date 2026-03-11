@@ -140,7 +140,7 @@ def get_matches(
             - country: case-insensitive substring match on job country
             - location: case-insensitive substring match on job location
             - corporateTitle: case-insensitive substring match on corporate title
-            - level: case-insensitive exact match on corporateTitleCode (ED, DIR, VP, AS)
+            - level: case-insensitive exact match on corporateTitleCode (AS, AO, AD, DIR, ED, MD)
             - orgLine / department: case-insensitive substring match on orgLine
             - skills: list of skill names — matches if any overlap with job's matchingSkills
             - minScore: minimum matchScore threshold (e.g. 2.0)

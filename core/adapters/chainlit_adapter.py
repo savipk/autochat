@@ -97,18 +97,13 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
 
     elif tool_name == "send_message":
         if tool_result.get("success"):
-            recipient = tool_result.get("recipient_name", "recipient")
-            msg_type = tool_result.get("message_type", "Teams")
-            sent_at = tool_result.get("sent_at", "")
-            text = f"Message sent to **{recipient}** via {msg_type}"
-            if sent_at:
-                text += f" at {sent_at}"
-            text += "."
-            elements.append(cl.Text(
-                name="send_confirmation",
-                content=text,
-                display="inline",
-            ))
+            elements.append(cl.CustomElement(name="SendConfirmation", props={
+                "recipientName": tool_result.get("recipient_name", ""),
+                "messageType": tool_result.get("message_type", "teams"),
+                "sentAt": tool_result.get("sent_at", ""),
+                "jobContext": tool_result.get("job_context"),
+                "suggestApply": tool_result.get("suggest_apply", False),
+            }))
 
     elif tool_name == "apply_for_role":
         if tool_result.get("success"):
@@ -162,24 +157,14 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
 
     elif tool_name == "ask_jd_qa":
         if tool_result.get("success"):
-            citations = tool_result.get("citations", [])
-            job_title = tool_result.get("job_title", "")
-            hiring_manager = tool_result.get("hiring_manager", "")
-            parts = []
-            if job_title:
-                parts.append(f"**Role:** {job_title}")
-            if hiring_manager:
-                parts.append(f"**Hiring Manager:** {hiring_manager}")
-            if citations:
-                parts.append("**Sources:** " + ", ".join(citations))
-            if tool_result.get("suggest_contact_hiring_manager"):
-                parts.append("\n_Tip: Consider contacting the hiring manager for more details._")
-            if parts:
-                elements.append(cl.Text(
-                    name="jd_qa_info",
-                    content="\n".join(parts),
-                    display="inline",
-                ))
+            elements.append(cl.CustomElement(name="JdQaCard", props={
+                "jobId": tool_result.get("job_id", ""),
+                "jobTitle": tool_result.get("job_title", ""),
+                "hiringManager": tool_result.get("hiring_manager", ""),
+                "orgLine": tool_result.get("org_line", ""),
+                "citations": tool_result.get("citations", []),
+                "suggestContactHiringManager": tool_result.get("suggest_contact_hiring_manager", False),
+            }))
 
     elif tool_name == "get_requisition":
         reqs = tool_result.get("requisitions", [])
@@ -195,23 +180,10 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
 
     elif tool_name == "jd_finalize":
         if tool_result.get("success"):
-            ref = tool_result.get("jd_reference", "")
-            finalized_at = tool_result.get("finalized_at", "")
-            next_steps = tool_result.get("next_steps", [])
-            parts = [f"**Status:** Finalized"]
-            if ref:
-                parts.append(f"**Reference:** `{ref}`")
-            if finalized_at:
-                parts.append(f"**Finalized at:** {finalized_at}")
-            if next_steps:
-                parts.append("\n**Next Steps:**")
-                for step in next_steps:
-                    parts.append(f"- {step}")
-            elements.append(cl.Text(
-                name="jd_finalized",
-                content="\n".join(parts),
-                display="inline",
-            ))
+            elements.append(cl.CustomElement(name="JdFinalizedCard", props={
+                "finalizedAt": tool_result.get("finalized_at", ""),
+                "nextSteps": tool_result.get("next_steps", []),
+            }))
 
     elif tool_name in ("jd_compose", "section_editor"):
         # JD content is now rendered by the JD Editor side panel.

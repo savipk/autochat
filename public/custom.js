@@ -24,6 +24,7 @@
   let _pollTimer = null;
   let _panelOpen = false;
   let _eventSource = null;
+  var _eventsAttached = false;
 
   // ---------------------------------------------------------------------------
   // Bootstrap — polls /user until authenticated, then initialises panel + SSE.
@@ -85,6 +86,7 @@
   function closePanel() {
     if (!_panelOpen) return;
     _panelOpen = false;
+    _eventsAttached = false;
     _panelEl.classList.remove("open");
     document.getElementById("root").classList.remove("autochat-panel-open");
   }
@@ -497,7 +499,8 @@
   // Event attachment
   // ---------------------------------------------------------------------------
   function attachEvents() {
-    if (!_panelEl) return;
+    if (!_panelEl || _eventsAttached) return;
+    _eventsAttached = true;
 
     _panelEl.addEventListener("click", function (e) {
       var btn = e.target.closest("[data-action]");
@@ -970,6 +973,7 @@
   var _similarJds = [];
   var _selectedRefJds = {};
   var _activeTab = "reference_jds";
+  var _jdEventsAttached = false;
   var _viewingRefJd = null;
 
   function createJdEditorPanel() {
@@ -1013,6 +1017,7 @@
   function closeJdEditorPanel() {
     if (!_jdEditorPanelOpen || !_jdEditorPanelEl) return;
     _jdEditorPanelOpen = false;
+    _jdEventsAttached = false;
     _jdEditorPanelEl.classList.remove("open");
     document.getElementById("root").classList.remove("autochat-jd-editor-panel-open");
   }
@@ -1290,7 +1295,8 @@
   }
 
   function attachJdEditorEvents() {
-    if (!_jdEditorPanelEl) return;
+    if (!_jdEditorPanelEl || _jdEventsAttached) return;
+    _jdEventsAttached = true;
 
     _jdEditorPanelEl.addEventListener("click", function (e) {
       // Handle reference JD link clicks (view-ref)

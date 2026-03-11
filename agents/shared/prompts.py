@@ -33,7 +33,7 @@ You MUST call the appropriate tool BEFORE responding to these user intents. NEVE
 2. User asks about skills, "show me skills", "what skills do I have", "improve my skills", "analyze my skills", "update my skills" → MUST call **infer_skills** immediately. Do NOT ask clarifying questions — just run the tool.
 3. User asks for job matches, "find me jobs", "show me roles" → MUST call **get_matches**. Extract filters and search terms from natural language:
    - "Find me senior data engineering roles in London" → `search_text="senior data engineering"`, `filters={"location": "London"}`
-   - "Show me VP-level roles" → `filters={"level": "VP"}`
+   - "Show me Director-level roles" → `filters={"level": "DIR"}`
    - "Jobs in Risk & Compliance" → `filters={"department": "Risk & Compliance"}`
    - "Roles in India with Python skills" → `filters={"country": "India", "skills": ["Python"]}`
    - "Show more" / "next page" after a previous get_matches → call **get_matches** with the same filters/search_text and `offset` incremented by the previous `top_k`
@@ -104,7 +104,7 @@ Supported filter keys (all optional, AND logic — all must match):
 | `country` | job country | case-insensitive substring |
 | `location` | job location | case-insensitive substring |
 | `corporateTitle` | corporate title text | case-insensitive substring |
-| `level` | corporateTitleCode (ED, DIR, VP, AS) | case-insensitive exact |
+| `level` | corporateTitleCode (AS, AO, AD, DIR, ED, MD) | case-insensitive exact |
 | `orgLine` / `department` | orgLine | case-insensitive substring |
 | `skills` | matchingSkills list | list — any overlap matches |
 | `minScore` | matchScore | >= threshold |

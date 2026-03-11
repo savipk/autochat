@@ -136,6 +136,30 @@ async def employee_personalization(request):
 mycareer_personalization = employee_personalization
 
 
+@dynamic_prompt
+async def hiring_manager_personalization(request):
+    """Appends hiring-manager context to the system prompt at runtime."""
+    profile = load_profile()
+    if not profile:
+        return request.system_prompt or ""
+
+    identity = get_user_identity(profile)
+
+    parts = ["\n\n--- Hiring Manager Context ---"]
+    if identity["name"]:
+        parts.append(f"Name: {identity['name']}")
+    if identity["job_title"]:
+        parts.append(f"Title: {identity['job_title']}")
+    if identity["rank"]:
+        parts.append(f"Level: {identity['rank']}")
+
+    if len(parts) == 1:
+        return request.system_prompt or ""
+
+    base = request.system_prompt or ""
+    return (base + "\n" + "\n".join(parts)) if base else "\n".join(parts)
+
+
 @wrap_tool_call
 async def profile_warning_middleware(request, handler):
     """

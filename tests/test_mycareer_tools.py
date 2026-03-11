@@ -201,17 +201,17 @@ class TestGetMatches:
             assert "london" in m["location"].lower()
 
     def test_filter_by_level(self):
-        result = self._run(filters={"level": "VP"}, top_k=10)
+        result = self._run(filters={"level": "DIR"}, top_k=10)
         assert result["success"] is True
         assert result["count"] > 0
         for m in result["matches"]:
-            assert m["corporateTitleCode"] == "VP"
+            assert m["corporateTitleCode"] == "DIR"
 
     def test_filter_by_level_case_insensitive(self):
-        result = self._run(filters={"level": "vp"}, top_k=10)
+        result = self._run(filters={"level": "dir"}, top_k=10)
         assert result["count"] > 0
         for m in result["matches"]:
-            assert m["corporateTitleCode"] == "VP"
+            assert m["corporateTitleCode"] == "DIR"
 
     def test_filter_by_orgline(self):
         result = self._run(filters={"orgLine": "Risk & Compliance"}, top_k=10)

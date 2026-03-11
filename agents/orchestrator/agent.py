@@ -53,7 +53,7 @@ def _create_worker_agent(agent: BaseAgent, name: str, description: str, context_
         except Exception as e:
             logger.exception("Worker agent '%s' raised an error", name)
             return json.dumps({
-                "response": f"Sorry, the {name} agent encountered an error: {type(e).__name__}. Please try again.",
+                "response": "Sorry, something went wrong. Please try again or rephrase your request.",
                 "tool_calls": [],
             })
 

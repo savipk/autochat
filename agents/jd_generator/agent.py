@@ -11,7 +11,7 @@ from core.middleware.summarization import create_summarization_middleware
 from core.middleware.tool_monitor import tool_monitor_middleware
 from core.skills.base import Skill, SkillRegistry
 from core.skills.loader import create_skill_loader_tool
-from agents.jd_generator.middleware import jd_generator_personalization
+from agents.shared.middleware import hiring_manager_personalization
 from agents.jd_generator.prompts import JD_GENERATOR_SYSTEM_PROMPT
 from agents.jd_generator.tools import ALL_TOOLS
 
@@ -40,7 +40,7 @@ def create_jd_agent(checkpointer=None) -> BaseAgent:
         system_prompt=JD_GENERATOR_SYSTEM_PROMPT,
         middleware=[
             create_summarization_middleware(),
-            jd_generator_personalization,
+            hiring_manager_personalization,
             tool_monitor_middleware,
         ],
         context_schema=JDGeneratorContext,

@@ -24,7 +24,7 @@ You MUST call the appropriate tool BEFORE responding to these user intents. NEVE
 
 1. User asks to find/search for candidates, employees, or people → MUST call **search_candidates**. Extract search terms and filters from natural language:
    - "Find me Python developers in London" → `search_text="Python developers"`, `filters={"location": "London"}`
-   - "Show me VP-level candidates with Machine Learning skills" → `filters={"level": "VP", "skills": ["Machine Learning"]}`
+   - "Show me Director-level candidates with Machine Learning skills" → `filters={"level": "DIR", "skills": ["Machine Learning"]}`
    - "Search for engineers in the GOTO Technology department" → `search_text="engineers"`, `filters={"department": "GOTO Technology"}`
    - "Show more" / "next page" after a previous search → call **search_candidates** with the same parameters and `offset` incremented by the previous `top_k`
 2. User asks to view a specific candidate/employee profile → MUST call **view_candidate** with the employee_id.

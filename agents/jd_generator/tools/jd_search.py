@@ -26,7 +26,7 @@ def run_jd_search(job_title: str, department: str | None = None) -> dict:
                 "id": "JD-2024-001",
                 "title": "Senior Data Scientist",
                 "department": department or "Technology",
-                "level": "Vice President",
+                "level": "Director",
                 "similarity_score": 0.89,
                 "summary": "Lead a team of data scientists building ML models for risk analytics.",
                 "sections": {
@@ -52,7 +52,7 @@ def run_jd_search(job_title: str, department: str | None = None) -> dict:
                 "id": "JD-2024-003",
                 "title": "ML Platform Engineer",
                 "department": department or "Technology",
-                "level": "Vice President",
+                "level": "Director",
                 "similarity_score": 0.78,
                 "summary": "Build and maintain the firm's ML platform for model training and serving.",
                 "sections": {
@@ -65,7 +65,7 @@ def run_jd_search(job_title: str, department: str | None = None) -> dict:
                 "id": "JD-2024-004",
                 "title": "NLP Research Scientist",
                 "department": department or "Technology",
-                "level": "Vice President",
+                "level": "Director",
                 "similarity_score": 0.74,
                 "summary": "Conduct NLP research and develop language-based AI solutions for the firm.",
                 "sections": {
@@ -78,7 +78,7 @@ def run_jd_search(job_title: str, department: str | None = None) -> dict:
                 "id": "JD-2024-005",
                 "title": "Data Engineering Lead",
                 "department": department or "Technology",
-                "level": "Vice President",
+                "level": "Director",
                 "similarity_score": 0.71,
                 "summary": "Lead the data engineering team building pipelines that power analytics and ML.",
                 "sections": {

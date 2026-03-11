@@ -10,7 +10,9 @@ from typing import Any
 
 from langchain_core.tools import tool
 
-_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "employee_directory.json")
+_DATA_PATH = os.path.normpath(os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "employee_directory.json")
+))
 
 
 def _load_employees() -> list[dict[str, Any]]:
