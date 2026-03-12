@@ -109,11 +109,11 @@ class TestUpdateProfile:
         assert result["success"] is True
         assert result["section"] == "experience"
 
-    def test_language_section_supported(self, mock_user_context):
+    def test_language_section_rejected(self, mock_user_context):
         updates = {"languages": [{"language": {"description": "German"}, "proficiency": {"description": "Native"}}]}
         result = self._run(section="language", updates=updates)
-        assert result["success"] is True
-        assert result["section"] == "language"
+        assert result["success"] is False
+        assert "not allowed" in result["error"]
 
     def test_update_skills_with_specific_list(self, mock_user_context):
         skills = ["Python", "Docker", "Kubernetes", "Terraform", "Go"]
@@ -397,16 +397,3 @@ class TestSendMessage:
         assert result["success"] is True
         assert result["recipient_name"] == "Prasanth Jagannathan"
         assert "sent_at" in result
-
-
-class TestApplyForRole:
-    def _run(self, **kwargs):
-        from agents.shared.tools.apply_for_role import run_apply_for_role
-        return run_apply_for_role(**kwargs)
-
-    def test_apply_success(self):
-        result = self._run(job_id="331525BR")
-        assert result["success"] is True
-        assert result["job_id"] == "331525BR"
-        assert result["status"] == "submitted"
-        assert "application_id" in result

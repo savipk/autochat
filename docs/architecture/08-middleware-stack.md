@@ -2,61 +2,68 @@
 
 How middleware wraps agent execution and applies cross-cutting concerns.
 
-## Middleware Stack Composition
+## Middleware Types
+
+HR Agent uses three middleware decorator types:
+
+| Type | Decorator | Purpose |
+|------|-----------|---------|
+| **dynamic_prompt** | `@dynamic_prompt` | Appends context to system prompt before agent runs |
+| **wrap_tool_call** | `@wrap_tool_call` | Wraps individual tool call execution (pre/post) |
+| **state middleware** | `create_*_middleware()` | Transforms full agent state (messages, history) |
+
+## Middleware Inventory
 
 ```mermaid
 graph TB
-    subgraph Input["Agent Input"]
-        Message["User message"]
-        Context["AppContext"]
+    subgraph CoreMW["Core Middleware<br/>(core/middleware/)"]
+        SumMW["SummarizationMiddleware<br/>create_summarization_middleware()<br/>Compresses history when > 10 messages"]
+        ToolMonMW["tool_monitor_middleware<br/>@wrap_tool_call<br/>Logs tool calls with timing"]
     end
 
-    subgraph GlobalMW["Global Middleware<br/>(Applied to all agents)"]
-        MW1["Tool Monitor Middleware<br/>core/middleware/tool_monitor.py<br/>Logs & tracks tool calls"]
-        MW2["Summarization Middleware<br/>core/middleware/summarization.py<br/>Compresses history"]
+    subgraph SharedMW["Shared Middleware<br/>(agents/shared/middleware.py)"]
+        FirstTouch["first_touch_profile_middleware<br/>@dynamic_prompt<br/>Auto-analyzes profile on first touch"]
+        EmpPers["employee_personalization<br/>@dynamic_prompt<br/>Injects user name/title/skills"]
+        HMPers["hiring_manager_personalization<br/>@dynamic_prompt<br/>Injects HM name/title"]
+        ProfWarn["profile_warning_middleware<br/>@wrap_tool_call<br/>Warns if profile < 50% complete"]
     end
 
-    subgraph AgentMW["Agent-Specific Middleware<br/>(agents/&lt;name&gt;/middleware.py)"]
-        AMWP["ProfileAgent<br/>Custom middleware"]
-        AMWJ["JobDiscoveryAgent<br/>Custom middleware"]
-        AMWO["OutreachAgent<br/>Custom middleware"]
-        AMWJD["JDGeneratorAgent<br/>Custom middleware"]
-        AMWC["CandidateSearchAgent<br/>Custom middleware"]
+    subgraph OrchestratorMW["Orchestrator Middleware<br/>(agents/orchestrator/middleware.py)"]
+        OrchPers["orchestrator_personalization<br/>@dynamic_prompt<br/>Injects user first_name"]
     end
 
-    subgraph Stack["Middleware Stack Order<br/>(in AgentConfig.middleware)"]
-        Order["1. Agent-specific MW<br/>2. Tool Monitor MW<br/>3. Summarization MW<br/>4. [more if needed]"]
+    subgraph HITLMW["HITL Middleware<br/>(core/middleware/)"]
+        HITL["HumanInTheLoopMiddleware<br/>Intercepts specified tools<br/>Raises interrupt for user approval"]
+    end
+```
+
+## Middleware Composition by Agent
+
+```mermaid
+graph TB
+    subgraph OrchestratorConfig["OrchestratorAgent"]
+        OC["middleware = [<br/>  SummarizationMW,<br/>  orchestrator_personalization,<br/>  tool_monitor_middleware<br/>]"]
     end
 
-    subgraph Execution["Agent Execution"]
-        Setup["Setup state<br/>Apply middleware"]
-        Invoke["invoke() with tools"]
-        ToolLoop["Tool calling loop"]
+    subgraph ProfileConfig["ProfileAgent"]
+        PC["middleware = [<br/>  SummarizationMW,<br/>  first_touch_profile_middleware,<br/>  employee_personalization,<br/>  tool_monitor_middleware,<br/>  HumanInTheLoopMW<br/>    (update_profile, rollback_profile)<br/>]"]
     end
 
-    subgraph Output["Agent Output"]
-        Result["Structured result"]
+    subgraph JobConfig["JobDiscoveryAgent"]
+        JC["middleware = [<br/>  SummarizationMW,<br/>  employee_personalization,<br/>  profile_warning_middleware,<br/>  tool_monitor_middleware<br/>]"]
     end
 
-    Input --> GlobalMW
-    GlobalMW --> MW1
-    GlobalMW --> MW2
+    subgraph OutreachConfig["OutreachAgent"]
+        OutC["middleware = [<br/>  SummarizationMW,<br/>  employee_personalization,<br/>  tool_monitor_middleware<br/>]"]
+    end
 
-    Input --> AgentMW
-    AgentMW --> AMWP
-    AgentMW --> AMWJ
-    AgentMW --> AMWO
-    AgentMW --> AMWJD
-    AgentMW --> AMWC
+    subgraph CandidateConfig["CandidateSearchAgent"]
+        CC["middleware = [<br/>  SummarizationMW,<br/>  hiring_manager_personalization,<br/>  tool_monitor_middleware<br/>]"]
+    end
 
-    GlobalMW --> Stack
-    AgentMW --> Stack
-
-    Stack --> Execution
-    Execution --> Setup
-    Setup --> Invoke
-    Invoke --> ToolLoop
-    ToolLoop --> Output
+    subgraph JDConfig["JDGeneratorAgent"]
+        JDC["middleware = [<br/>  SummarizationMW,<br/>  hiring_manager_personalization,<br/>  tool_monitor_middleware<br/>]"]
+    end
 ```
 
 ## Middleware Execution Flow
@@ -64,54 +71,97 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant Agent as BaseAgent
-    participant MW1 as Agent Custom MW
-    participant MW2 as Tool Monitor MW
-    participant MW3 as Summarization MW
+    participant DynPrompt as Dynamic Prompt MW<br/>(personalization)
+    participant Sum as Summarization MW
     participant Core as Agent Core<br/>invoke()
-    participant Tools as LangChain Tools
+    participant ToolMon as Tool Monitor MW<br/>(per tool call)
+    participant HITL as HITL MW<br/>(per tool call)
+    participant Tool as LangChain Tool
 
-    Agent->>MW1: invoke(state)
+    Agent->>DynPrompt: Pre-process:<br/>Append user context to system prompt
+    DynPrompt->>Sum: Pre-process:<br/>Check message count
 
-    MW1->>MW1: Pre-process<br/>agent-specific logic
+    Sum->>Core: invoke(state)
 
-    MW1->>MW2: invoke(state)
+    loop Tool Calling Loop
+        Core->>ToolMon: Tool call intercepted
+        ToolMon->>ToolMon: Log start + timestamp
+        ToolMon->>HITL: Check if tool needs approval
 
-    MW2->>MW2: Pre-process<br/>start timing
+        alt Tool requires HITL approval
+            HITL->>HITL: Raise interrupt
+            HITL-->>Core: Return interrupt payload
+        else Tool allowed
+            HITL->>Tool: Execute tool
+            Tool-->>HITL: Tool result
+        end
 
-    MW2->>MW3: invoke(state)
+        HITL-->>ToolMon: Result
+        ToolMon->>ToolMon: Log duration + result
+        ToolMon-->>Core: Return result
+    end
 
-    MW3->>MW3: Pre-process<br/>check history length
-
-    MW3->>Core: invoke(state)
-
-    Core->>Tools: Tool calling loop
-    Tools-->>Core: Tool results
-
-    Core-->>MW3: Execution complete
-
-    MW3->>MW3: Post-process<br/>Compress history<br/>if needed
-
-    MW3-->>MW2: Return state
-
-    MW2->>MW2: Post-process<br/>Log timing & metadata
-
-    MW2-->>MW1: Return state
-
-    MW1->>MW1: Post-process<br/>Agent-specific cleanup
-
-    MW1-->>Agent: Final result
+    Core-->>Sum: Execution complete
+    Sum->>Sum: Post-process:<br/>Compress history if > threshold
+    Sum-->>DynPrompt: Return state
+    DynPrompt-->>Agent: Final result
 ```
 
-## Tool Monitor Middleware
+## Summarization Middleware Detail
 
 ```mermaid
 graph TB
-    ToolMonitor["Tool Monitor Middleware<br/>core/middleware/tool_monitor.py"]
+    SumMW["SummarizationMiddleware<br/>core/middleware/summarization.py"]
+
+    subgraph Config["Configuration<br/>(core/config.py)"]
+        Threshold["MAX_MESSAGES_BEFORE_SUMMARIZATION = 10"]
+        Keep["MESSAGES_TO_KEEP_AFTER_SUMMARIZATION = 5"]
+        TokenEstimate["~500 tokens per message estimate"]
+    end
+
+    subgraph Check["Compression Check"]
+        CountMsgs["Count messages<br/>in history"]
+        Compare["Compare to threshold (10)"]
+        Decision["Decision:<br/>Compress or pass-through"]
+    end
+
+    subgraph Compress["Compression Pipeline"]
+        SelectOld["Select oldest<br/>messages beyond keep limit"]
+        CreateSummary["LLM summarizes<br/>Extract key points"]
+        Replace["Replace old messages<br/>with summary"]
+        KeepRecent["Keep 5 most recent<br/>messages intact"]
+    end
+
+    subgraph Output["Output"]
+        CompressedHist["Compressed history<br/>+ 5 fresh messages"]
+        PassThrough["Original history<br/>unchanged"]
+    end
+
+    SumMW --> Config
+    Config --> Check
+    Check --> CountMsgs
+    CountMsgs --> Compare
+    Compare --> Decision
+
+    Decision -->|> 10 messages| Compress
+    Decision -->|≤ 10 messages| PassThrough
+
+    Compress --> SelectOld
+    SelectOld --> CreateSummary
+    CreateSummary --> Replace
+    Replace --> KeepRecent
+    KeepRecent --> CompressedHist
+```
+
+## Tool Monitor Middleware Detail
+
+```mermaid
+graph TB
+    ToolMonitor["tool_monitor_middleware<br/>core/middleware/tool_monitor.py<br/>@wrap_tool_call"]
 
     subgraph Pre["Pre-Tool Logging"]
-        LogCall["Log tool call<br/>Tool name + args"]
-        Timestamp["Record start time"]
-        Context["Capture context"]
+        LogCall["Log: 'Calling {tool_name}'<br/>with args"]
+        Timestamp["Record start time<br/>(perf_counter)"]
     end
 
     subgraph Exec["Tool Execution<br/>(Passthrough)"]
@@ -119,181 +169,115 @@ graph TB
     end
 
     subgraph Post["Post-Tool Logging"]
-        Duration["Calculate duration<br/>end_time - start_time"]
-        LogResult["Log result status<br/>Success/Error/Partial"]
-        Metrics["Record metrics<br/>(latency, tokens)"]
+        Duration["Calculate duration<br/>(milliseconds)"]
+        LogResult["Log: 'Tool {name} completed<br/>in {ms}ms'"]
+        LogError["Log exception<br/>if tool fails"]
     end
 
     ToolMonitor --> Pre
     Pre --> LogCall
     Pre --> Timestamp
-    Pre --> Context
 
-    Context --> Exec
+    Timestamp --> Exec
     Exec --> Call
     Call --> Post
     Post --> Duration
     Post --> LogResult
-    Post --> Metrics
+    Post --> LogError
 ```
 
-## Summarization Middleware
+## Employee Personalization Middleware
 
 ```mermaid
 graph TB
-    SumMW["Summarization Middleware<br/>core/middleware/summarization.py"]
+    EmpPers["employee_personalization<br/>agents/shared/middleware.py<br/>@dynamic_prompt"]
 
-    subgraph Config["Configuration<br/>(core/config.py)"]
-        Threshold["Message Threshold<br/>e.g., 50 messages"]
-        SummaryInterval["Summarization Interval<br/>How often to compress"]
+    subgraph Input["Reads From"]
+        Profile["load_profile()"]
+        Identity["get_user_identity()"]
     end
 
-    subgraph Check["Compression Check"]
-        CountMsgs["Count messages<br/>in history"]
-        Compare["Compare to threshold"]
-        Decision["Decision:<br/>Compress or pass-through"]
+    subgraph Injects["Appends to System Prompt"]
+        Name["Employee name"]
+        Title["Job title"]
+        Rank["Corporate level"]
+        TopSkills["Top 3 skills"]
+        Completion["Profile completion %"]
     end
 
-    subgraph Compress["Compression Pipeline"]
-        SelectOld["Select oldest<br/>messages"]
-        CreateSummary["LLM summarizes<br/>Extract key points"]
-        Replace["Replace old messages<br/>with summary token"]
-    end
-
-    subgraph Output["Output"]
-        CompressedHist["Compressed history<br/>+ fresh messages"]
-        PassThrough["Original history<br/>unchanged"]
-    end
-
-    SumMW --> Config
-    Config --> Threshold
-    Config --> SummaryInterval
-
-    Threshold --> Check
-    SummaryInterval --> Check
-
-    Check --> CountMsgs
-    CountMsgs --> Compare
-    Compare --> Decision
-
-    Decision -->|threshold exceeded| Compress
-    Decision -->|under threshold| PassThrough
-
-    Compress --> SelectOld
-    SelectOld --> CreateSummary
-    CreateSummary --> Replace
-    Replace --> CompressedHist
+    EmpPers --> Input
+    Input --> Profile
+    Input --> Identity
+    Identity --> Injects
 ```
 
-## Custom Agent Middleware Example
+## First Touch Profile Middleware
 
 ```mermaid
 graph TB
-    CustomMW["Custom Middleware<br/>agents/profile/middleware.py<br/>(Example)"]
+    FirstTouch["first_touch_profile_middleware<br/>agents/shared/middleware.py<br/>@dynamic_prompt"]
 
-    subgraph Pre["Pre-Agent Setup"]
-        LoadProfile["Load user profile"]
-        ValidateProfile["Validate profile schema"]
-        EnrichContext["Enrich context with<br/>profile metadata"]
+    subgraph Logic["Logic"]
+        CheckCache["Check per-thread cache<br/>(5-minute TTL)"]
+        RunAnalyzer["Run profile_analyzer<br/>on first touch only"]
+        CacheResult["Cache result"]
     end
 
-    subgraph Exec["Agent Execution"]
-        AgentRuns["Agent runs normally<br/>with enriched context"]
+    subgraph Injects["Appends to System Prompt"]
+        Score["Completion score"]
+        Missing["Missing sections"]
+        TopRecs["Top 3 recommendations"]
     end
 
-    subgraph Post["Post-Agent Processing"]
-        ParseResult["Parse agent result<br/>Extract profile updates"]
-        ValidateUpdate["Validate updates<br/>against schema"]
-        BackupProfile["Create backup<br/>of old profile"]
-        ApplyUpdate["Apply updates<br/>to profile"]
-    end
-
-    CustomMW --> Pre
-    Pre --> LoadProfile
-    Pre --> ValidateProfile
-    Pre --> EnrichContext
-
-    EnrichContext --> Exec
-    Exec --> AgentRuns
-
-    AgentRuns --> Post
-    Post --> ParseResult
-    Post --> ValidateUpdate
-    Post --> BackupProfile
-    Post --> ApplyUpdate
+    FirstTouch --> Logic
+    Logic --> CheckCache
+    CheckCache -->|miss| RunAnalyzer
+    RunAnalyzer --> CacheResult
+    CacheResult --> Injects
+    CheckCache -->|hit| Injects
 ```
 
-## Middleware Composition
+## HITL Middleware
 
 ```mermaid
 graph TB
-    subgraph ProfileAgentConfig["ProfileAgent AgentConfig"]
-        Config1["middleware = [<br/>  ProfileCustomMW(),<br/>  ToolMonitorMW(),<br/>  SummarizationMW()<br/>]"]
+    HITL["HumanInTheLoopMiddleware"]
+
+    subgraph Config["Configuration"]
+        Tools["Intercepted tools:<br/>update_profile, rollback_profile"]
     end
 
-    subgraph JobAgentConfig["JobDiscoveryAgent AgentConfig"]
-        Config2["middleware = [<br/>  JobDiscoveryCustomMW(),<br/>  ToolMonitorMW(),<br/>  SummarizationMW()<br/>]"]
+    subgraph Flow["Flow"]
+        Intercept["Intercept tool call"]
+        RaiseInterrupt["Raise interrupt<br/>with action_requests"]
+        WaitApproval["Agent paused<br/>waiting for user"]
+        Resume["agent.resume(decision)"]
     end
 
-    subgraph OutreachAgentConfig["OutreachAgent AgentConfig"]
-        Config3["middleware = [<br/>  OutreachCustomMW(),<br/>  ToolMonitorMW(),<br/>  SummarizationMW()<br/>]"]
+    subgraph Outcomes["Outcomes"]
+        Approve["Approved → Execute tool"]
+        Reject["Rejected → Return rejection message"]
     end
 
-    ProfileAgentConfig -->|ordered execution| ExecutionOrder
-    JobAgentConfig -->|ordered execution| ExecutionOrder
-    OutreachAgentConfig -->|ordered execution| ExecutionOrder
-
-    subgraph ExecutionOrder["Execution Order<br/>(Top to Bottom)"]
-        Step1["1. Agent-specific<br/>pre-processing"]
-        Step2["2. Tool monitoring<br/>Start timing"]
-        Step3["3. History summarization<br/>Check threshold"]
-        Step4["4. Agent.invoke()<br/>Tool loop"]
-        Step5["3. History summarization<br/>Compress if needed"]
-        Step6["2. Tool monitoring<br/>Log metrics"]
-        Step7["1. Agent-specific<br/>post-processing"]
-    end
-
-    Step1 --> Step2
-    Step2 --> Step3
-    Step3 --> Step4
-    Step4 --> Step5
-    Step5 --> Step6
-    Step6 --> Step7
-```
-
-## Middleware Chain Pattern
-
-```mermaid
-graph TB
-    Input["Input:<br/>Message + State"]
-
-    MW["Middleware<br/>Instance"]
-
-    Pre["Pre-handler<br/>transform input"]
-
-    Next["Call next<br/>middleware<br/>or core agent"]
-
-    Result["Result from<br/>next in chain"]
-
-    Post["Post-handler<br/>transform output"]
-
-    Output["Output:<br/>Modified result"]
-
-    Input --> MW
-    MW --> Pre
-    Pre -->|modified| Next
-    Next --> Result
-    Result -->|returned| Post
-    Post -->|modified| Output
+    HITL --> Config
+    Config --> Flow
+    Flow --> Intercept
+    Intercept --> RaiseInterrupt
+    RaiseInterrupt --> WaitApproval
+    WaitApproval --> Resume
+    Resume --> Outcomes
+    Outcomes --> Approve
+    Outcomes --> Reject
 ```
 
 ## Key Points
 
-1. **Ordered Stack** — Middleware applied in order defined in AgentConfig
-2. **Pre/Post Processing** — Middleware can modify input and output
-3. **Passthrough** — Each middleware can skip if not applicable
-4. **Agent-Specific** — Different agents have different middleware
-5. **Composable** — New middleware can be added without modifying agents
-6. **Tool Monitoring** — Universal tool tracking and timing
-7. **History Management** — Summarization keeps token usage under control
-8. **Custom Logic** — Each agent can implement domain-specific concerns
+1. **Three MW Types** — `@dynamic_prompt` (pre-invoke), `@wrap_tool_call` (per-tool), state transforms (full state)
+2. **Ordered Stack** — Middleware applied in order defined in AgentConfig
+3. **Agent-Specific Stacks** — Different agents have different middleware combinations
+4. **Employee vs HM Personalization** — Employee-facing agents get user context; HM-facing agents get HM context
+5. **First Touch Analysis** — Profile agent auto-analyzes on first interaction (cached 5 min)
+6. **Profile Warning** — Job Discovery warns when profile completion is low
+7. **HITL Interrupts** — Profile updates require user approval before persisting
+8. **History Management** — Summarization keeps token usage under control (threshold: 10 messages)
+9. **Tool Monitoring** — Universal tool tracking with millisecond timing

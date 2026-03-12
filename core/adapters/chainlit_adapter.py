@@ -13,7 +13,6 @@ job cards, skill lists, draft message bodies).  The mapping is:
   profile_analyzer-> LLM text + ProfileScore element          (LLM before elements)
   draft_message   -> LLM text + DraftMessage element          (LLM around elements)
   send_message    -> confirmation Text element (LLM only)
-  apply_for_role  -> confirmation Text element (LLM only)
   ask_jd_qa       -> LLM text + Q&A citation Text element
   update_profile  -> LLM text + profile update confirmation Text element
   get_requisition -> RequisitionCard element (LLM before element)
@@ -104,19 +103,6 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
                 "jobContext": tool_result.get("job_context"),
                 "suggestApply": tool_result.get("suggest_apply", False),
             }))
-
-    elif tool_name == "apply_for_role":
-        if tool_result.get("success"):
-            job_title = tool_result.get("job_title", "the role")
-            app_id = tool_result.get("application_id", "")
-            text = f"Application submitted for **{job_title}**."
-            if app_id:
-                text += f"  \nApplication ID: `{app_id}`"
-            elements.append(cl.Text(
-                name="apply_confirmation",
-                content=text,
-                display="inline",
-            ))
 
     elif tool_name == "update_profile":
         if tool_result.get("success"):

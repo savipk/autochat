@@ -7,35 +7,38 @@ How the OrchestratorAgent discovers, wraps, and delegates to specialist agents.
 ```mermaid
 graph TB
     subgraph OrchestratorFlow["OrchestratorAgent Flow"]
-        Input["User Message<br/>+ Context"]
+        Input["User Message<br/>+ AppContext"]
         Receive["on_message<br/>receives input"]
         LLMAnalyze["LLM analyzes intent<br/>Select specialist agent"]
         SelectAgent["Determine target agent<br/>based on message type"]
     end
 
-    subgraph SubAgentWrapper["Sub-Agent Wrapping"]
-        CreateWrapper["_create_sub_agent()<br/>factory function"]
+    subgraph WorkerAgentWrapper["Worker Agent Wrapping"]
+        CreateWrapper["_create_worker_agent()<br/>factory function"]
         ConfigAgent["Wrap specialist agent<br/>as LangChain tool"]
         ThreadID["Create ThreadID<br/>parent:agent_name"]
         StateBinding["Bind state<br/>and context"]
     end
 
-    subgraph Invocation["Sub-Agent Invocation"]
-        InvokeSubAgent["invoke(message)<br/>on specialist"]
+    subgraph Invocation["Worker Agent Invocation"]
+        InvokeWorkerAgent["invoke(message)<br/>on specialist"]
         AwaitResult["Await response"]
         ParseJSON["Parse structured JSON<br/>from specialist"]
+        HandleHITL["Handle HITL interrupts<br/>(update_profile, rollback)"]
     end
 
     subgraph Specialists["Available Specialists"]
-        ProfileAgent["ProfileAgent<br/>Profile analysis,<br/>skill inference,<br/>updates"]
+        ProfileAgent["ProfileAgent<br/>Profile analysis,<br/>skill inference,<br/>updates, rollback"]
         JobAgent["JobDiscoveryAgent<br/>Job search,<br/>details lookup,<br/>Q&A"]
-        OutreachAgent["OutreachAgent<br/>Draft messages,<br/>send communication,<br/>apply for roles"]
+        OutreachAgent["OutreachAgent<br/>Draft messages,<br/>send communication"]
         JDAgent["JDGeneratorAgent<br/>Compose JD,<br/>edit sections,<br/>finalize"]
         CandidateAgent["CandidateSearchAgent<br/>Find employees,<br/>view profiles"]
     end
 
     subgraph Response["Response Aggregation"]
         AggResult["Aggregate specialist<br/>response"]
+        ExtractToolCalls["Extract inner tool_calls<br/>for adapter rendering"]
+        ExtractInterrupts["Extract HITL interrupts<br/>for confirmation cards"]
         ConvertUI["Convert to UI<br/>via Chainlit Adapter"]
         ReturnOrch["Return to parent<br/>message loop"]
     end
@@ -55,12 +58,16 @@ graph TB
     ConfigAgent --> ThreadID
     ThreadID --> StateBinding
 
-    StateBinding --> InvokeSubAgent
-    InvokeSubAgent --> AwaitResult
+    StateBinding --> InvokeWorkerAgent
+    InvokeWorkerAgent --> AwaitResult
     AwaitResult --> ParseJSON
+    ParseJSON --> HandleHITL
 
-    ParseJSON --> AggResult
-    AggResult --> ConvertUI
+    HandleHITL --> AggResult
+    AggResult --> ExtractToolCalls
+    AggResult --> ExtractInterrupts
+    ExtractToolCalls --> ConvertUI
+    ExtractInterrupts --> ConvertUI
     ConvertUI --> ReturnOrch
 
     RegList --> RegFetch
@@ -71,20 +78,39 @@ graph TB
     ConfigAgent --> CandidateAgent
 ```
 
-## Sub-Agent Tool Integration
+## Worker Agent Tool Integration
 
 ```mermaid
 graph LR
     Orch["OrchestratorAgent<br/>LLM Tools"]
-    SubAgentTool["Sub-Agent Tool<br/>(wrapped specialist)"]
+    WorkerAgentTool["Worker Agent Tool<br/>(wrapped specialist)"]
     Specialist["Specialist Agent<br/>(e.g., ProfileAgent)"]
-    SpecTools["Specialist Tools<br/>(6 tools for Profile)"]
+    SpecTools["Specialist Tools<br/>(e.g., 6 tools for Profile)"]
 
-    Orch -->|calls| SubAgentTool
-    SubAgentTool -->|invokes| Specialist
+    Orch -->|calls| WorkerAgentTool
+    WorkerAgentTool -->|invokes| Specialist
     Specialist -->|uses| SpecTools
-    SpecTools -->|return| SubAgentTool
-    SubAgentTool -->|returns| Orch
+    SpecTools -->|return| WorkerAgentTool
+    WorkerAgentTool -->|returns JSON with<br/>tool_calls or interrupts| Orch
+```
+
+## Worker Agent Return Format
+
+The worker agent wrapper extracts inner tool calls and HITL interrupts from specialist responses:
+
+```mermaid
+graph TB
+    WorkerResult["Worker Agent Result JSON"]
+
+    ToolCalls["tool_calls: [<br/>  {name: 'get_matches', content: {...}},<br/>  {name: 'profile_analyzer', content: {...}}<br/>]"]
+
+    Interrupts["interrupts: [<br/>  {value: {action_requests: [<br/>    {name: 'update_profile', args: {...}}<br/>  ]}}<br/>]"]
+
+    AgentName["agent_name: 'profile'"]
+
+    WorkerResult --> ToolCalls
+    WorkerResult --> Interrupts
+    WorkerResult --> AgentName
 ```
 
 ## ThreadID Namespacing
@@ -95,13 +121,13 @@ graph TB
     OrchestratorThread["OrchestratorAgent<br/>ThreadID: abc123"]
 
     Call1["User asks: Analyze my profile"]
-    SubAgent1["ProfileAgent<br/>ThreadID: abc123:ProfileAgent<br/>Isolated history"]
+    SubAgent1["ProfileAgent<br/>ThreadID: abc123:profile<br/>Isolated history"]
 
     Call2["User asks: Find jobs for me"]
-    SubAgent2["JobDiscoveryAgent<br/>ThreadID: abc123:JobDiscoveryAgent<br/>Isolated history"]
+    SubAgent2["JobDiscoveryAgent<br/>ThreadID: abc123:job_discovery<br/>Isolated history"]
 
     Call3["User asks: Draft outreach"]
-    SubAgent3["OutreachAgent<br/>ThreadID: abc123:OutreachAgent<br/>Isolated history"]
+    SubAgent3["OutreachAgent<br/>ThreadID: abc123:outreach<br/>Isolated history"]
 
     SessionStart --> OrchestratorThread
     Call1 --> SubAgent1
@@ -117,12 +143,43 @@ graph TB
     SubAgent2 -.->|isolated| SubAgent3
 ```
 
+## HITL Interrupt Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant App as app.py
+    participant Orch as OrchestratorAgent
+    participant Worker as Worker Agent
+    participant Profile as ProfileAgent
+    participant HITL as HumanInTheLoopMiddleware
+
+    User->>App: "Add Python to my skills"
+    App->>Orch: invoke(message)
+    Orch->>Worker: call profile worker
+    Worker->>Profile: invoke(message)
+    Profile->>HITL: update_profile tool call intercepted
+    HITL-->>Profile: Interrupt raised
+    Profile-->>Worker: Returns interrupts JSON
+    Worker-->>Orch: Returns {interrupts: [...]}
+    Orch-->>App: Response with interrupts
+
+    App->>App: render_interrupt_elements()<br/>Show ProfileUpdateConfirmation card
+
+    User->>App: Clicks "Approve" button
+    App->>App: action_callback("approve_profile_update")
+    App->>Profile: agent.resume(decision="approve")
+    Profile->>Profile: Execute update_profile
+    Profile-->>App: Return result
+    App->>App: Render updated response
+```
+
 ## Key Design Patterns
 
-### 1. **Sub-Agent Wrapping**
-- Each specialist agent is dynamically wrapped as a LangChain tool
+### 1. **Worker Agent Wrapping**
+- Each specialist agent is dynamically wrapped as a LangChain tool via `_create_worker_agent()`
 - Orchestrator can compose specialists without tight coupling
-- Enables flexible routing based on intent
+- Worker tools return JSON with `tool_calls` (inner results) and `interrupts` (HITL)
 
 ### 2. **ThreadID Namespacing**
 - Parent thread: `{session_id}`
@@ -143,3 +200,10 @@ graph TB
 - Routes to best-fit specialist based on message content
 - Specialist executes independently with full context
 - Results aggregated and adapted for UI
+
+### 5. **Human-in-the-Loop**
+- Profile updates and rollbacks require user confirmation
+- `HumanInTheLoopMiddleware` intercepts specified tool calls
+- Interrupts bubble up through worker agent → orchestrator → app.py
+- User approves/rejects via UI card action callbacks
+- Agent resumes with decision via `agent.resume()`

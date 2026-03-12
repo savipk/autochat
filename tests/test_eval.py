@@ -108,7 +108,7 @@ class TestLoadScenario:
         )
         scenario = load_scenario(path)
         assert scenario["name"] == "mycareer_happy_flow"
-        assert len(scenario["turns"]) == 8
+        assert len(scenario["turns"]) == 7
         assert scenario["turns"][0]["user"] == "Suggest skills"
         assert scenario["turns"][0]["expectations"]["tool_called"] == "infer_skills"
 

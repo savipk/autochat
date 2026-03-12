@@ -72,10 +72,10 @@ graph TB
     end
 
     subgraph DataAccess["Data Access"]
-        json["JSON file read<br/>profiles.json, etc."]
-        api["API call<br/>External service"]
-        db["Database query<br/>employee_directory"]
-        compute["Computation<br/>in-process"]
+        json["JSON file read<br/>profiles, jobs, etc."]
+        compute["Computation<br/>scoring, matching"]
+        employee["Employee directory<br/>candidate search"]
+        skills["Skills ontology<br/>skill definitions"]
     end
 
     subgraph ResultProcessing["Result Processing"]
@@ -107,14 +107,14 @@ graph TB
 
     exec --> DataAccess
     DataAccess --> json
-    DataAccess --> api
-    DataAccess --> db
     DataAccess --> compute
+    DataAccess --> employee
+    DataAccess --> skills
 
     json --> result
-    api --> result
-    db --> result
     compute --> result
+    employee --> result
+    skills --> result
 
     result --> ResultProcessing
     ResultProcessing --> parse
@@ -133,106 +133,110 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph AgentOutput["Agent Output<br/>(JSON)"]
-        JobData["Job listing data<br/>{title, company, skills}"]
-        ProfileData["Profile analysis<br/>{scores, summary}"]
-        MessageData["Draft message<br/>{template, personalized}"]
-        CandidateData["Candidate info<br/>{name, skills, role}"]
+    subgraph AgentOutput["Agent Output<br/>(JSON from tool_calls)"]
+        JobData["get_matches<br/>{matches, total_available, has_more}"]
+        ProfileData["profile_analyzer<br/>{completionScore, sectionScores}"]
+        SkillsData["infer_skills<br/>{topSkills, additionalSkills, evidence}"]
+        MessageData["draft_message<br/>{recipient_name, message_body}"]
+        SendData["send_message<br/>{success, recipient_name, sent_at}"]
+        QAData["ask_jd_qa<br/>{answer, citations, job_title}"]
+        UpdateData["update_profile<br/>{section, updated_fields, scores}"]
+        CandidateData["search_candidates<br/>{candidates, total_available}"]
+        ReqData["get_requisition<br/>{requisitions}"]
+        FinalizeData["jd_finalize<br/>{finalized_at, next_steps}"]
     end
 
     subgraph Adapter["Chainlit Adapter<br/>(core/adapters/chainlit_adapter.py)"]
-        JobMapper["JobCard mapper<br/>JSON → JobCard props"]
-        ProfileMapper["ProfileScore mapper<br/>JSON → ProfileScore props"]
-        MessageMapper["DraftMessage mapper<br/>JSON → DraftMessage props"]
-        CandidateMapper["CandidateCard mapper<br/>JSON → CandidateCard props"]
+        RenderTool["render_tool_elements()"]
+        RenderInterrupt["render_interrupt_elements()"]
+        ExtractCalls["extract_tool_calls_from_messages()"]
     end
 
     subgraph Components["React Components<br/>(public/elements/)"]
-        JobCard["JobCard.jsx<br/>Teams-style card<br/>Display job info<br/>Apply button"]
-        ProfileScore["ProfileScore.jsx<br/>Score visualization<br/>Skill badges<br/>Action buttons"]
-        DraftMessage["DraftMessage.jsx<br/>Message preview<br/>Edit controls<br/>Send button"]
-        CandidateCard["CandidateCard.jsx<br/>Candidate info<br/>Skill match<br/>View profile"]
-        SkillsCard["SkillsCard.jsx<br/>Skills display<br/>Endorsement UI"]
+        JobCard["JobCard.jsx<br/>Job listing grid"]
+        ProfileScore["ProfileScore.jsx<br/>Completion gauge"]
+        SkillsCard["SkillsCard.jsx<br/>Interactive skill selection"]
+        DraftMessage["DraftMessage.jsx<br/>Message preview"]
+        SendConfirmation["SendConfirmation.jsx<br/>Send confirmation"]
+        JdQaCard["JdQaCard.jsx<br/>Q&A with citations"]
+        ProfileUpdateConfirmation["ProfileUpdateConfirmation.jsx<br/>HITL approval card"]
+        CandidateCard["CandidateCard.jsx<br/>Candidate grid"]
+        RequisitionCard["RequisitionCard.jsx<br/>Requisition details"]
+        JdFinalizedCard["JdFinalizedCard.jsx<br/>Finalization summary"]
     end
 
     subgraph ChainlitUI["Chainlit UI"]
         Message["cl.Message<br/>with custom elements"]
         Display["Browser render"]
-        Interaction["User interaction<br/>clicks, edits"]
+        Interaction["User interaction<br/>clicks, approvals"]
     end
 
-    JobData --> JobMapper
-    ProfileData --> ProfileMapper
-    MessageData --> MessageMapper
-    CandidateData --> CandidateMapper
+    JobData --> RenderTool
+    ProfileData --> RenderTool
+    SkillsData --> RenderTool
+    MessageData --> RenderTool
+    SendData --> RenderTool
+    QAData --> RenderTool
+    CandidateData --> RenderTool
+    ReqData --> RenderTool
+    FinalizeData --> RenderTool
+    UpdateData --> RenderTool
+    UpdateData --> RenderInterrupt
 
-    JobMapper --> JobCard
-    ProfileMapper --> ProfileScore
-    MessageMapper --> DraftMessage
-    CandidateMapper --> CandidateCard
+    RenderTool --> JobCard
+    RenderTool --> ProfileScore
+    RenderTool --> SkillsCard
+    RenderTool --> DraftMessage
+    RenderTool --> SendConfirmation
+    RenderTool --> JdQaCard
+    RenderTool --> CandidateCard
+    RenderTool --> RequisitionCard
+    RenderTool --> JdFinalizedCard
+    RenderInterrupt --> ProfileUpdateConfirmation
 
     JobCard --> Message
     ProfileScore --> Message
-    DraftMessage --> Message
-    CandidateCard --> Message
     SkillsCard --> Message
+    DraftMessage --> Message
+    SendConfirmation --> Message
+    JdQaCard --> Message
+    ProfileUpdateConfirmation --> Message
+    CandidateCard --> Message
+    RequisitionCard --> Message
+    JdFinalizedCard --> Message
 
     Message --> Display
     Display --> Interaction
 ```
 
-## Middleware Execution Order
+## Tool → UI Component Mapping
 
-```mermaid
-graph TB
-    Input["Tool call input"]
-
-    M1["1. Custom Agent<br/>Middleware<br/>(agents/&lt;name&gt;/middleware.py)"]
-    M2["2. Tool Monitor<br/>Middleware<br/>(core/middleware/tool_monitor.py)"]
-    M3["3. Summarization<br/>Middleware<br/>(core/middleware/summarization.py)"]
-
-    Exec["Tool Execution"]
-
-    M3b["3. Summarization<br/>Post-processing"]
-    M2b["2. Tool Monitor<br/>Logging & timing"]
-    M1b["1. Custom Agent<br/>Post-processing"]
-
-    Output["Tool result output"]
-
-    Input --> M1
-    M1 --> M2
-    M2 --> M3
-    M3 --> Exec
-
-    Exec --> M3b
-    M3b --> M2b
-    M2b --> M1b
-    M1b --> Output
-```
-
-## Tool Result Format
-
-```mermaid
-graph TB
-    ToolResult["Tool Result"]
-
-    Success["Success<br/>{<br/>  'status': 'success',<br/>  'data': {...},<br/>  'metadata': {...}<br/>}"]
-
-    Error["Error<br/>{<br/>  'status': 'error',<br/>  'error': 'message',<br/>  'details': {...}<br/>}"]
-
-    Partial["Partial<br/>{<br/>  'status': 'partial',<br/>  'data': {...},<br/>  'remaining': [...]<br/>}"]
-
-    ToolResult --> Success
-    ToolResult --> Error
-    ToolResult --> Partial
-```
+| Tool | UI Component | Rendering |
+|------|-------------|-----------|
+| `get_matches` | `JobCard` | Grid of job cards with pagination |
+| `profile_analyzer` | `ProfileScore` | Completion gauge + section scores |
+| `infer_skills` | `SkillsCard` | Interactive skill selection with evidence |
+| `draft_message` | `DraftMessage` | Message preview with edit/send flow |
+| `send_message` | `SendConfirmation` | Confirmation with recipient and timestamp |
+| `ask_jd_qa` | `JdQaCard` | Q&A answer with citations |
+| `update_profile` | `ProfileUpdateConfirmation` | Before/after diff with approve/reject (HITL) |
+| `rollback_profile` | `ProfileUpdateConfirmation` | Before/after diff with approve/reject (HITL) |
+| `search_candidates` | `CandidateCard` | Candidate grid with match indicators |
+| `get_requisition` | `RequisitionCard` | Requisition details |
+| `jd_finalize` | `JdFinalizedCard` | Finalization summary with next steps |
+| `jd_compose` / `section_editor` | *(SSE panel)* | JD Editor side panel via SSE events |
+| `jd_search` | *(SSE panel)* | JD Editor side panel via SSE events |
+| `open_profile_panel` | *(side panel)* | Profile editor panel slides in |
+| `view_job` | *(side panel)* | Job details panel slides in |
 
 ## Key Points
 
 1. **LLM Decision Loop** — Agent keeps looping until LLM decides task is complete
 2. **Middleware Wrapping** — Each tool call is wrapped in middleware chain
 3. **Tool Registry Lookup** — Tools resolved dynamically by name
-4. **Data Source Abstraction** — Tools can query JSON, APIs, databases, or compute
-5. **UI Adaptation** — Agent JSON results mapped to React components via adapter
-6. **Rich UI Components** — Teams-style cards with interaction handlers
-7. **Streaming Support** — Results can be streamed back to UI in real-time
+4. **Data Source Abstraction** — Tools query JSON files or compute results in-process
+5. **Orchestrator Unwrapping** — `extract_tool_calls_from_messages()` unwraps inner tool calls from worker agent wrappers
+6. **HITL Rendering** — `render_interrupt_elements()` generates approval cards for profile changes
+7. **Rich UI Components** — 10 React components with Teams-style styling
+8. **SSE Panels** — JD editor and profile editor use server-sent events for side panel rendering
+9. **Streaming Support** — Results can be streamed back to UI in real-time

@@ -7,56 +7,42 @@ Detailed breakdown of each specialist agent and their tool sets.
 ```mermaid
 graph TB
     subgraph Profile["ProfileAgent<br/>agents/profile/"]
-        P1["analyze_profile<br/>Profile analysis & scoring"]
+        P1["profile_analyzer<br/>Profile scoring & analysis"]
         P2["infer_skills<br/>Auto-detect skills"]
-        P3["update_profile<br/>Modify profile data"]
-        P4["list_skills<br/>View skills"]
-        P5["export_profile<br/>Export to format"]
-        P6["rollback_changes<br/>Undo updates"]
-        PData["data/profiles.json"]
+        P3["update_profile<br/>CRUD on profile sections"]
+        P4["list_profile_entries<br/>List section entries & IDs"]
+        P5["open_profile_panel<br/>Open editor panel"]
+        P6["rollback_profile<br/>Restore from backup"]
+        PData["data/*_profile.json"]
     end
 
     subgraph JobD["JobDiscoveryAgent<br/>agents/job_discovery/"]
-        J1["search_jobs<br/>Query job postings"]
-        J2["view_job_details<br/>Get full job info"]
-        J3["ask_about_job<br/>Q&A on job"]
-        JData["data/jobs.json"]
+        J1["get_matches<br/>Search & filter job postings"]
+        J2["view_job<br/>Display job details panel"]
+        J3["ask_jd_qa<br/>Q&A on job descriptions"]
+        JData["data/matching_jobs.json"]
     end
 
     subgraph Outreach["OutreachAgent<br/>agents/outreach/"]
-        O1["draft_message<br/>Compose outreach"]
-        O2["send_message<br/>Send email/contact"]
-        O3["apply_for_role<br/>Submit application"]
-        OData["data/profiles.json"]
+        O1["draft_message<br/>Compose outreach message"]
+        O2["send_message<br/>Send via Teams"]
+        OData["data/*_profile.json"]
     end
 
     subgraph JDGen["JDGeneratorAgent<br/>agents/jd_generator/"]
-        J4["search_roles<br/>Find role templates"]
-        J5["compose_jd<br/>Create job desc"]
-        J6["edit_section<br/>Modify JD section"]
-        J7["finalize_jd<br/>Complete JD"]
-        J8["load_skill<br/>Fetch skill info"]
-        JGData["data/skills.json<br/>agents/jd_generator/skills/"]
+        JG1["get_requisition<br/>Fetch requisition details"]
+        JG2["jd_search<br/>Search role templates"]
+        JG3["jd_compose<br/>Create job description"]
+        JG4["section_editor<br/>Modify JD sections"]
+        JG5["jd_finalize<br/>Complete & validate JD"]
+        JG6["load_skill<br/>Fetch skill definitions"]
+        JGData["data/job_requisitions.json<br/>data/skills_ontology.json<br/>agents/jd_generator/skills/"]
     end
 
     subgraph Candidate["CandidateSearchAgent<br/>agents/candidate_search/"]
-        C1["search_candidates<br/>Find employees<br/>by skill/level/loc"]
+        C1["search_candidates<br/>Find employees<br/>by skill/level/location"]
         C2["view_candidate<br/>Get candidate profile"]
         CData["data/employee_directory.json"]
-    end
-
-    subgraph Shared["MyCareer Shared Tools<br/>agents/mycareer/tools/"]
-        S1["get_user_profile"]
-        S2["search_opportunities"]
-        S3["update_status"]
-        S4["get_recommendations"]
-        S5["get_industry_trends"]
-        S6["analyze_skills_gap"]
-        S7["get_career_path"]
-        S8["get_job_market_insights"]
-        S9["get_salary_benchmarks"]
-        S10["track_applications"]
-        S11["get_networking_suggestions"]
     end
 
     P1 --> PData
@@ -72,20 +58,16 @@ graph TB
 
     O1 --> OData
     O2 --> OData
-    O3 --> OData
 
-    J4 --> JGData
-    J5 --> JGData
-    J6 --> JGData
-    J7 --> JGData
-    J8 --> JGData
+    JG1 --> JGData
+    JG2 --> JGData
+    JG3 --> JGData
+    JG4 --> JGData
+    JG5 --> JGData
+    JG6 --> JGData
 
     C1 --> CData
     C2 --> CData
-
-    ProfileAgent -.->|uses| Shared
-    JobD -.->|uses| Shared
-    Outreach -.->|uses| Shared
 ```
 
 ## Agent Detail: ProfileAgent
@@ -95,36 +77,33 @@ graph TB
     ProfileAgent["ProfileAgent<br/>Profile Analysis & Management"]
 
     subgraph Tools6["6 Tools"]
-        analyze["analyze_profile<br/>Profile scoring & analysis"]
-        infer["infer_skills<br/>Auto-detect from history"]
-        update["update_profile<br/>Modify data"]
-        list_skills["list_skills<br/>View current skills"]
-        export["export_profile<br/>Export data"]
-        rollback["rollback_changes<br/>Revert updates"]
+        analyze["profile_analyzer<br/>Completion scoring & gap analysis"]
+        infer["infer_skills<br/>Auto-detect from work history"]
+        update["update_profile<br/>Add/edit/remove entries"]
+        list_entries["list_profile_entries<br/>List entries with IDs"]
+        open_panel["open_profile_panel<br/>Open editor side panel"]
+        rollback["rollback_profile<br/>Restore from backup"]
+    end
+
+    subgraph Middleware["Middleware Stack"]
+        MW1["SummarizationMiddleware"]
+        MW2["first_touch_profile_middleware<br/>(auto-analyze on first touch)"]
+        MW3["employee_personalization<br/>(inject user context)"]
+        MW4["tool_monitor_middleware"]
+        MW5["HumanInTheLoopMiddleware<br/>(intercepts update_profile,<br/>rollback_profile)"]
     end
 
     subgraph Process["Workflow"]
         load["Load profile JSON"]
         compute["Compute scores"]
         infer_proc["Infer missing skills"]
-        persist["Persist changes"]
-        history["Maintain history"]
+        persist["Persist changes via ProfileManager"]
+        backup["Create backup before changes"]
     end
 
     ProfileAgent --> Tools6
-    Tools6 --> analyze
-    Tools6 --> infer
-    Tools6 --> update
-    Tools6 --> list_skills
-    Tools6 --> export
-    Tools6 --> rollback
-
+    ProfileAgent --> Middleware
     Tools6 --> Process
-    Process --> load
-    Process --> compute
-    Process --> infer_proc
-    Process --> persist
-    Process --> history
 ```
 
 ## Agent Detail: JobDiscoveryAgent
@@ -134,22 +113,27 @@ graph TB
     JobAgent["JobDiscoveryAgent<br/>Job Search & Matching"]
 
     subgraph Tools3["3 Tools"]
-        search["search_jobs<br/>Query by keywords/<br/>location/level"]
-        details["view_job_details<br/>Full job information"]
-        qa["ask_about_job<br/>Answer questions<br/>about posting"]
+        search["get_matches<br/>Search by keywords/filters<br/>with pagination"]
+        details["view_job<br/>Open job details panel"]
+        qa["ask_jd_qa<br/>Answer questions<br/>about job postings"]
+    end
+
+    subgraph Middleware["Middleware Stack"]
+        MW1["SummarizationMiddleware"]
+        MW2["employee_personalization<br/>(inject user context)"]
+        MW3["profile_warning_middleware<br/>(warn if profile < 50%)"]
+        MW4["tool_monitor_middleware"]
     end
 
     subgraph Process["Workflow"]
-        parse["Parse search query"]
-        match["Match against postings"]
-        rank["Rank by relevance"]
-        annotate["Add context/insights"]
+        parse["Parse search query & filters"]
+        match["Match against job postings"]
+        rank["Rank by match score (descending)"]
+        paginate["Paginate results (default top_k=3)"]
     end
 
     JobAgent --> Tools3
-    Tools3 --> search
-    Tools3 --> details
-    Tools3 --> qa
+    JobAgent --> Middleware
     Tools3 --> Process
 ```
 
@@ -159,24 +143,27 @@ graph TB
 graph TB
     OutAgent["OutreachAgent<br/>Communication & Outreach"]
 
-    subgraph Tools3b["3 Tools"]
-        draft["draft_message<br/>Compose email/<br/>message"]
-        send["send_message<br/>Send via contact<br/>channel"]
-        apply["apply_for_role<br/>Submit application<br/>to job posting"]
+    subgraph Tools2["2 Tools"]
+        draft["draft_message<br/>Compose Teams message<br/>to hiring manager"]
+        send["send_message<br/>Send via Teams"]
+    end
+
+    subgraph Middleware["Middleware Stack"]
+        MW1["SummarizationMiddleware"]
+        MW2["employee_personalization<br/>(inject user context)"]
+        MW3["tool_monitor_middleware"]
     end
 
     subgraph Process["Workflow"]
-        template["Use message templates"]
+        template["Draft from context"]
         personalize["Personalize for role"]
         validate["Validate before send"]
-        track["Track outreach"]
+        confirm["Confirm with user before sending"]
     end
 
-    OutAgent --> Tools3b
-    Tools3b --> draft
-    Tools3b --> send
-    Tools3b --> apply
-    Tools3b --> Process
+    OutAgent --> Tools2
+    OutAgent --> Middleware
+    Tools2 --> Process
 ```
 
 ## Agent Detail: JDGeneratorAgent
@@ -185,38 +172,39 @@ graph TB
 graph TB
     JDAgent["JDGeneratorAgent<br/>Job Description Authoring"]
 
-    subgraph Tools5["5 Tools + Skill Loader"]
-        search_roles["search_roles<br/>Find role templates"]
-        compose["compose_jd<br/>Create JD from scratch"]
-        edit_sec["edit_section<br/>Modify specific section"]
-        finalize["finalize_jd<br/>Complete & validate"]
-        load_skill["load_skill<br/>Fetch skill definitions"]
+    subgraph Tools6["6 Tools"]
+        get_req["get_requisition<br/>Fetch requisition details"]
+        search["jd_search<br/>Search role templates"]
+        compose["jd_compose<br/>Create JD from scratch"]
+        edit_sec["section_editor<br/>Modify specific section"]
+        finalize["jd_finalize<br/>Complete & validate"]
+        load_skill["load_skill<br/>Fetch skill definitions<br/>(dynamic from SkillRegistry)"]
     end
 
-    subgraph SkillLoader["Skill Loader"]
+    subgraph SkillLoader["Skill Registry"]
         skill_reg["SkillRegistry<br/>Dynamic loading"]
-        skill_files["Skill files in<br/>agents/jd_generator/skills/"]
+        skill_files["jd_standards.md<br/>agents/jd_generator/skills/"]
+    end
+
+    subgraph Middleware["Middleware Stack"]
+        MW1["SummarizationMiddleware"]
+        MW2["hiring_manager_personalization<br/>(inject HM context)"]
+        MW3["tool_monitor_middleware"]
     end
 
     subgraph Process["Workflow"]
-        template["Start with template"]
+        template["Start from requisition"]
         define_req["Define requirements"]
         add_skills["Add skill details"]
-        finalize_step["Final review"]
+        finalize_step["Final review & validation"]
     end
 
-    JDAgent --> Tools5
-    Tools5 --> search_roles
-    Tools5 --> compose
-    Tools5 --> edit_sec
-    Tools5 --> finalize
-    Tools5 --> load_skill
-
+    JDAgent --> Tools6
+    JDAgent --> Middleware
     load_skill --> SkillLoader
     SkillLoader --> skill_reg
     SkillLoader --> skill_files
-
-    Tools5 --> Process
+    Tools6 --> Process
 ```
 
 ## Agent Detail: CandidateSearchAgent
@@ -227,7 +215,13 @@ graph TB
 
     subgraph Tools2["2 Tools"]
         search_cand["search_candidates<br/>Find by skills/<br/>level/location"]
-        view_cand["view_candidate<br/>Get profile details"]
+        view_cand["view_candidate<br/>Get candidate profile details"]
+    end
+
+    subgraph Middleware["Middleware Stack"]
+        MW1["SummarizationMiddleware"]
+        MW2["hiring_manager_personalization<br/>(inject HM context)"]
+        MW3["tool_monitor_middleware"]
     end
 
     subgraph Process["Workflow"]
@@ -238,23 +232,35 @@ graph TB
     end
 
     CandAgent --> Tools2
-    Tools2 --> search_cand
-    Tools2 --> view_cand
+    CandAgent --> Middleware
     Tools2 --> Process
 ```
 
-## MyCareer Shared Tools (11 tools)
+## Shared Tools (11 tools in agents/shared/tools/)
 
 Used by Profile, Job Discovery, and Outreach agents:
 
-1. `get_user_profile` — Fetch user profile
-2. `search_opportunities` — Search jobs/roles
-3. `update_status` — Update career status
-4. `get_recommendations` — Career recommendations
-5. `get_industry_trends` — Industry data
-6. `analyze_skills_gap` — Skills gap analysis
-7. `get_career_path` — Career progression paths
-8. `get_job_market_insights` — Market intelligence
-9. `get_salary_benchmarks` — Salary data
-10. `track_applications` — Application tracking
-11. `get_networking_suggestions` — Networking tips
+| # | Tool | File | Used By |
+|---|------|------|---------|
+| 1 | `profile_analyzer` | `profile_analyzer.py` | Profile |
+| 2 | `update_profile` | `update_profile.py` | Profile |
+| 3 | `infer_skills` | `infer_skills.py` | Profile |
+| 4 | `list_profile_entries` | `list_profile_entries.py` | Profile |
+| 5 | `open_profile_panel` | `open_profile_panel.py` | Profile |
+| 6 | `rollback_profile` | `rollback_profile.py` | Profile |
+| 7 | `get_matches` | `get_matches.py` | Job Discovery |
+| 8 | `view_job` | `view_job.py` | Job Discovery |
+| 9 | `ask_jd_qa` | `ask_jd_qa.py` | Job Discovery |
+| 10 | `draft_message` | `draft_message.py` | Outreach |
+| 11 | `send_message` | `send_message.py` | Outreach |
+
+## Tool Distribution Summary
+
+| Agent | Tool Count | Tools |
+|-------|-----------|-------|
+| **Profile** | 6 | profile_analyzer, update_profile, infer_skills, list_profile_entries, open_profile_panel, rollback_profile |
+| **Job Discovery** | 3 | get_matches, view_job, ask_jd_qa |
+| **Outreach** | 2 | draft_message, send_message |
+| **Candidate Search** | 2 | search_candidates, view_candidate |
+| **JD Generator** | 6 | get_requisition, jd_search, jd_compose, section_editor, jd_finalize, load_skill |
+| **Total** | **19** | |

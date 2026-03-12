@@ -22,7 +22,7 @@ def create_outreach_agent(checkpointer=None) -> BaseAgent:
     """Create and return a configured Outreach agent."""
     config = AgentConfig(
         name="outreach",
-        description="Helps employees draft and send messages to hiring managers, and submit applications for internal roles.",
+        description="Helps employees draft and send messages to hiring managers.",
         llm=get_llm(),
         tools=OUTREACH_TOOLS,
         system_prompt=OUTREACH_SYSTEM_PROMPT + OUTREACH_WELCOME_ADDENDUM,
@@ -48,7 +48,6 @@ class OutreachProtocol(AgentProtocol):
             skills=[
                 AgentSkill(name="draft_message", description="Draft messages to hiring managers", tags=["messaging", "draft"]),
                 AgentSkill(name="send_message", description="Send drafted messages via Teams", tags=["messaging", "send"]),
-                AgentSkill(name="apply_for_role", description="Submit job applications", tags=["jobs", "apply"]),
             ],
         )
         super().__init__(card)

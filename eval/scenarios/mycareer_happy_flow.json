@@ -1,6 +1,6 @@
 {
   "name": "mycareer_happy_flow",
-  "description": "Happy path through MyCareer agent: suggest skills -> update profile -> find matches -> ask JD Q&A (x2) -> draft message -> send message -> apply for role",
+  "description": "Happy path through MyCareer agent: suggest skills -> update profile -> find matches -> ask JD Q&A (x2) -> draft message -> send message",
   "agent": "profile",
   "profile_path": "data/miro_profile.json",
   "turns": [
@@ -63,14 +63,6 @@
       "user": "Send the message",
       "expectations": {
         "tool_called": "send_message",
-        "success": true
-      }
-    },
-    {
-      "turn": 8,
-      "user": "Apply for the role",
-      "expectations": {
-        "tool_called": "apply_for_role",
         "success": true
       }
     }

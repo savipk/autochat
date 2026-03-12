@@ -63,7 +63,7 @@
   // ---------------------------------------------------------------------------
   function createPanel() {
     _panelEl = document.createElement("div");
-    _panelEl.className = "autochat-profile-panel";
+    _panelEl.className = "hr-agent-profile-panel";
     _panelEl.innerHTML = '<div class="profile-panel-loading">Loading profile...</div>';
     document.body.appendChild(_panelEl);
   }
@@ -76,7 +76,7 @@
     closeJdEditorPanel();
     _panelOpen = true;
     _panelEl.classList.add("open");
-    document.getElementById("root").classList.add("autochat-panel-open");
+    document.getElementById("root").classList.add("hr-agent-panel-open");
     // Load profile data on first open
     if (!_currentProfile) {
       loadProfile();
@@ -88,7 +88,7 @@
     _panelOpen = false;
     _eventsAttached = false;
     _panelEl.classList.remove("open");
-    document.getElementById("root").classList.remove("autochat-panel-open");
+    document.getElementById("root").classList.remove("hr-agent-panel-open");
   }
 
   // ---------------------------------------------------------------------------
@@ -774,7 +774,7 @@
 
   function createJdPanel() {
     _jdPanelEl = document.createElement("div");
-    _jdPanelEl.className = "autochat-jd-panel";
+    _jdPanelEl.className = "hr-agent-jd-panel";
     _jdPanelEl.innerHTML = '<div class="profile-panel-loading">Loading job details...</div>';
     document.body.appendChild(_jdPanelEl);
   }
@@ -788,7 +788,7 @@
     _currentJobId = newId;
     _jdPanelOpen = true;
     _jdPanelEl.classList.add("open");
-    document.getElementById("root").classList.add("autochat-jd-panel-open");
+    document.getElementById("root").classList.add("hr-agent-jd-panel-open");
     // Use job data from SSE event directly — no separate fetch needed
     if (jobData && typeof jobData === "object" && jobData.title) {
       renderJdPanel(jobData);
@@ -801,7 +801,7 @@
     if (!_jdPanelOpen || !_jdPanelEl) return;
     _jdPanelOpen = false;
     _jdPanelEl.classList.remove("open");
-    document.getElementById("root").classList.remove("autochat-jd-panel-open");
+    document.getElementById("root").classList.remove("hr-agent-jd-panel-open");
   }
 
   function loadJobDetail(jobId) {
@@ -978,7 +978,7 @@
 
   function createJdEditorPanel() {
     _jdEditorPanelEl = document.createElement("div");
-    _jdEditorPanelEl.className = "autochat-jd-editor-panel";
+    _jdEditorPanelEl.className = "hr-agent-jd-editor-panel";
     _jdEditorPanelEl.innerHTML = '<div class="profile-panel-loading">Loading...</div>';
     document.body.appendChild(_jdEditorPanelEl);
   }
@@ -996,7 +996,7 @@
     closeJdPanel();
     _jdEditorPanelOpen = true;
     _jdEditorPanelEl.classList.add("open");
-    document.getElementById("root").classList.add("autochat-jd-editor-panel-open");
+    document.getElementById("root").classList.add("hr-agent-jd-editor-panel-open");
 
     if (jdData && typeof jdData === "object" && jdData.sections) {
       _currentJdDraft = JSON.parse(JSON.stringify(jdData));
@@ -1019,7 +1019,7 @@
     _jdEditorPanelOpen = false;
     _jdEventsAttached = false;
     _jdEditorPanelEl.classList.remove("open");
-    document.getElementById("root").classList.remove("autochat-jd-editor-panel-open");
+    document.getElementById("root").classList.remove("hr-agent-jd-editor-panel-open");
   }
 
   function loadLatestJdDraft() {
@@ -1053,7 +1053,7 @@
       closeJdPanel();
       _jdEditorPanelOpen = true;
       _jdEditorPanelEl.classList.add("open");
-      document.getElementById("root").classList.add("autochat-jd-editor-panel-open");
+      document.getElementById("root").classList.add("hr-agent-jd-editor-panel-open");
     }
     loadLatestJdDraft();
   }

@@ -96,13 +96,14 @@ class TestInvalidInputs:
         assert result["success"] is False
         assert "entry_id is required" in result["error"]
 
-    def test_qualification_alias_accepted(self, profile_path, mock_user_context):
+    def test_qualification_alias_rejected(self, profile_path, mock_user_context):
         result = _run(
             section="qualification",
             operation="add_entry",
             updates={"institutionName": "Stanford", "degree": "MS"},
         )
-        assert result["success"] is True
+        assert result["success"] is False
+        assert "not allowed" in result["error"]
 
 
 class TestMergeOperation:
@@ -168,14 +169,11 @@ class TestAddEntry:
         assert result["success"] is False
         assert "jobTitle" in result["error"]
 
-    def test_add_education_entry(self, profile_path, mock_user_context):
+    def test_add_education_entry_rejected(self, profile_path, mock_user_context):
         entry = {"institutionName": "Stanford", "degree": "MS"}
         result = _run(section="education", operation="add_entry", updates=entry)
-        assert result["success"] is True
-
-        profile = json.loads(open(profile_path).read())
-        edus = profile["core"]["qualification"]["educations"]
-        assert len(edus) == 2
+        assert result["success"] is False
+        assert "not allowed" in result["error"]
 
 
 class TestEditEntry:

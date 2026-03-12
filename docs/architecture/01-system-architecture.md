@@ -1,6 +1,6 @@
 # System Architecture Overview
 
-High-level view of how all components interact in the AutoChat multi-agent orchestration system.
+High-level view of how all components interact in the HR Agent multi-agent orchestration system.
 
 ## Architecture Diagram
 
@@ -29,8 +29,8 @@ graph TB
     subgraph Tools["Tool Layer"]
         ProfileTools["Profile Tools<br/>6 tools"]
         JobTools["Job Discovery Tools<br/>3 tools"]
-        OutreachTools["Outreach Tools<br/>3 tools"]
-        JDTools["JD Generator Tools<br/>5 tools + Skill Loader"]
+        OutreachTools["Outreach Tools<br/>2 tools"]
+        JDTools["JD Generator Tools<br/>6 tools (incl. Skill Loader)"]
         CandidateTools["Candidate Tools<br/>2 tools"]
     end
 
@@ -38,28 +38,34 @@ graph TB
         BaseAgent["BaseAgent<br/>LangChain Wrapper"]
         AgentConfig["AgentConfig<br/>Name, Tools, Middleware"]
         AgentRegistry["AgentRegistry<br/>Agent Discovery"]
-        Middleware["Middleware Stack<br/>Summarization, Monitoring"]
+        Middleware["Middleware Stack<br/>Summarization, Monitoring,<br/>HITL, Personalization"]
         State["AppContext<br/>Shared State (contextvars)"]
     end
 
     subgraph Data["Data Layer"]
-        Profiles["data/profiles.json<br/>User Profiles"]
-        JobPostings["data/jobs.json<br/>Job Postings"]
+        Profiles["data/*_profile.json<br/>User Profiles"]
+        JobPostings["data/matching_jobs.json<br/>Job Postings"]
         EmployeeDir["data/employee_directory.json<br/>Candidate Directory"]
-        SkillsDB["data/skills.json<br/>Skills Ontology"]
-        ChatDB["data/data.db<br/>Chat History"]
+        SkillsDB["data/skills_ontology.json<br/>Skills Ontology"]
+        Requisitions["data/job_requisitions.json<br/>Job Requisitions"]
+        ChatDB["data/data.db<br/>Chat History (SQLite)"]
     end
 
     subgraph Adapters["Adapter Layer"]
         ChainlitAdapter["Chainlit Adapter<br/>Tool Result → UI Elements"]
     end
 
-    subgraph UIElements["UI Components"]
+    subgraph UIElements["UI Components (10)"]
         JobCard["JobCard.jsx"]
         ProfileScore["ProfileScore.jsx"]
         DraftMessage["DraftMessage.jsx"]
         CandidateCard["CandidateCard.jsx"]
         SkillsCard["SkillsCard.jsx"]
+        SendConfirmation["SendConfirmation.jsx"]
+        ProfileUpdateConfirmation["ProfileUpdateConfirmation.jsx"]
+        RequisitionCard["RequisitionCard.jsx"]
+        JdQaCard["JdQaCard.jsx"]
+        JdFinalizedCard["JdFinalizedCard.jsx"]
     end
 
     Chainlit -->|on_message| AppPy
@@ -79,6 +85,7 @@ graph TB
     ProfileTools --> Profiles
     JobTools --> JobPostings
     OutreachTools --> Profiles
+    JDTools --> Requisitions
     JDTools --> SkillsDB
     CandidateTools --> EmployeeDir
 
@@ -100,23 +107,33 @@ graph TB
     ChainlitAdapter --> DraftMessage
     ChainlitAdapter --> CandidateCard
     ChainlitAdapter --> SkillsCard
+    ChainlitAdapter --> SendConfirmation
+    ChainlitAdapter --> ProfileUpdateConfirmation
+    ChainlitAdapter --> RequisitionCard
+    ChainlitAdapter --> JdQaCard
+    ChainlitAdapter --> JdFinalizedCard
 
     JobCard --> Chainlit
     ProfileScore --> Chainlit
     DraftMessage --> Chainlit
     CandidateCard --> Chainlit
     SkillsCard --> Chainlit
+    SendConfirmation --> Chainlit
+    ProfileUpdateConfirmation --> Chainlit
+    RequisitionCard --> Chainlit
+    JdQaCard --> Chainlit
+    JdFinalizedCard --> Chainlit
 
     ChatDB -.->|persistent history| Chainlit
 ```
 
 ## Key Components
 
-- **Chainlit UI**: Web-based chat interface for user interaction
-- **app.py**: Entry point handling Chainlit lifecycle and session management
-- **OrchestratorAgent**: Central routing agent that delegates to specialists
-- **Specialist Agents**: Domain-specific agents (Profile, Jobs, Outreach, JD, Candidates)
-- **BaseAgent**: LangChain wrapper providing async invoke/stream with middleware
-- **Adapters**: Convert tool results to custom UI components
-- **Data Layer**: JSON files and SQLite for persistence
-- **Middleware**: Cross-cutting concerns (summarization, monitoring)
+- **Chainlit UI**: Web-based chat interface with multi-user auth (5 users) and SQLite persistence
+- **app.py**: Entry point handling Chainlit lifecycle hooks (`on_chat_start`, `on_message`, `on_chat_resume`, action callbacks for HITL)
+- **OrchestratorAgent**: Central routing agent that wraps specialists as worker agent tools via `_create_worker_agent()`
+- **Specialist Agents**: Domain-specific agents (Profile, Jobs, Outreach, JD Generator, Candidate Search)
+- **BaseAgent**: LangChain wrapper providing async `invoke()`/`stream()` with middleware stack and checkpointing
+- **Adapters**: Convert tool results to custom React UI components; also handle HITL interrupt rendering
+- **Data Layer**: JSON files for profiles/jobs/candidates/skills + SQLite for chat history
+- **Middleware**: Cross-cutting concerns (summarization, tool monitoring, employee personalization, HITL interrupts)

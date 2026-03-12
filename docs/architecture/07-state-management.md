@@ -8,15 +8,14 @@ How application state flows through the system and how threading is isolated via
 graph TB
     subgraph SessionInit["Session Initialization"]
         UserSession["Chainlit Session<br/>session_id generated"]
-        OnMessage["on_message callback"]
-        AppPyHandler["app.py handler<br/>builds AppContext"]
+        OnChatStart["on_chat_start callback<br/>Auth user, load profile"]
+        AppPyHandler["on_message handler<br/>builds AppContext"]
     end
 
     subgraph ContextConstruction["AppContext Construction"]
-        UserProfile["Load user profile<br/>PROFILE_PATH env"]
-        SessionData["Session data<br/>chat history"]
-        Preferences["User preferences<br/>settings"]
-        ThreadID["ThreadID<br/>session_id"]
+        ThreadID["thread_id<br/>from session"]
+        FirstName["first_name<br/>from user profile"]
+        DisplayName["display_name<br/>from user metadata"]
         BuildContext["Build AppContext<br/>from components"]
     end
 
@@ -28,50 +27,47 @@ graph TB
 
     subgraph AgentAccess["Agent Access"]
         GetContext["get_context()<br/>retrieve from ContextVar"]
-        Profile["Access profile"]
-        History["Access history"]
-        Prefs["Access preferences"]
+        AccessName["Access first_name"]
+        AccessDisplay["Access display_name"]
+        AccessThread["Access thread_id"]
     end
 
     subgraph ThreadIDScoping["ThreadID Scoping"]
         ParentID["Parent ThreadID<br/>abc123"]
-        ChildID["Child ThreadID<br/>abc123:ProfileAgent"]
+        ChildID["Child ThreadID<br/>abc123:profile"]
         IsolatedHistory["Isolated message<br/>history per ThreadID"]
     end
 
     subgraph DataUpdate["Data Updates"]
         Persist["Persist changes<br/>to JSON/DB"]
-        UpdateProfile["Update profile.json"]
-        UpdateHistory["Update chat history<br/>data.db"]
+        UpdateProfile["Update profile.json<br/>via ProfileManager"]
+        UpdateHistory["Update chat history<br/>data.db (SQLite)"]
     end
 
-    UserSession --> OnMessage
-    OnMessage --> AppPyHandler
+    UserSession --> OnChatStart
+    OnChatStart --> AppPyHandler
 
-    AppPyHandler --> UserProfile
-    AppPyHandler --> SessionData
-    AppPyHandler --> Preferences
     AppPyHandler --> ThreadID
-    UserProfile --> BuildContext
-    SessionData --> BuildContext
-    Preferences --> BuildContext
+    AppPyHandler --> FirstName
+    AppPyHandler --> DisplayName
     ThreadID --> BuildContext
+    FirstName --> BuildContext
+    DisplayName --> BuildContext
 
     BuildContext --> ContextVarDef
     ContextVarDef --> TokenSet
     TokenSet --> Isolation
 
     Isolation --> GetContext
-    GetContext --> Profile
-    GetContext --> History
-    GetContext --> Prefs
+    GetContext --> AccessName
+    GetContext --> AccessDisplay
+    GetContext --> AccessThread
 
     ThreadID --> ParentID
     ParentID --> ChildID
     ChildID --> IsolatedHistory
 
-    Profile --> Persist
-    History --> Persist
+    AccessName --> Persist
     Persist --> UpdateProfile
     Persist --> UpdateHistory
 ```
@@ -80,39 +76,39 @@ graph TB
 
 ```mermaid
 graph TB
-    AppContext["AppContext<br/>Root"]
+    BaseContext["BaseContext<br/>(core/state.py)"]
 
-    Session["session_id<br/>string<br/>Unique session"]
-    ThreadID["thread_id<br/>string<br/>Current thread"]
-    UserID["user_id<br/>string<br/>User identifier"]
+    ThreadID["thread_id: str<br/>(default: '')"]
 
-    Profile["profile<br/>UserProfile<br/>object"]
-    ProfileName["name, email<br/>skills, experience<br/>education"]
-    ProfileScore["scores<br/>compatibility, fit"]
+    AppContext["AppContext(BaseContext)<br/>(core/state.py)"]
 
-    History["message_history<br/>List[Message]"]
-    HistMsg["messages with<br/>timestamps<br/>and results"]
+    FirstName["first_name: str<br/>User's first name"]
+    DisplayName["display_name: str<br/>Full display name"]
 
-    Preferences["preferences<br/>dict"]
-    PrefTheme["theme, language<br/>notification settings"]
+    AgentContexts["Agent-Specific Contexts"]
 
-    State["agent_state<br/>dict"]
-    StateData["Current task data<br/>Intermediate results"]
+    ProfileContext["ProfileContext(BaseContext)<br/>completion_score: int = 100"]
+    JobContext["JobDiscoveryContext(BaseContext)<br/>(no extra fields)"]
+    OutreachContext["OutreachContext(BaseContext)<br/>(no extra fields)"]
+    CandidateContext["CandidateSearchContext(BaseContext)<br/>(no extra fields)"]
+    JDContext["JDGeneratorContext(BaseContext)<br/>(no extra fields)"]
 
-    AppContext --> Session
-    AppContext --> ThreadID
-    AppContext --> UserID
-    AppContext --> Profile
-    AppContext --> History
-    AppContext --> Preferences
-    AppContext --> State
+    BaseContext --> ThreadID
+    AppContext --> BaseContext
+    AppContext --> FirstName
+    AppContext --> DisplayName
 
-    Profile --> ProfileName
-    Profile --> ProfileScore
+    AgentContexts --> ProfileContext
+    AgentContexts --> JobContext
+    AgentContexts --> OutreachContext
+    AgentContexts --> CandidateContext
+    AgentContexts --> JDContext
 
-    History --> HistMsg
-    Preferences --> PrefTheme
-    State --> StateData
+    ProfileContext --> BaseContext
+    JobContext --> BaseContext
+    OutreachContext --> BaseContext
+    CandidateContext --> BaseContext
+    JDContext --> BaseContext
 ```
 
 ## ThreadID Isolation Model
@@ -122,25 +118,37 @@ graph TB
     subgraph Session1["Session: abc123"]
         OrchestratorThread["OrchestratorAgent<br/>ThreadID: abc123"]
 
-        subgraph SubThread1["ProfileAgent<br/>ThreadID: abc123:ProfileAgent"]
+        subgraph SubThread1["ProfileAgent<br/>ThreadID: abc123:profile"]
             ProfHistory["Message history<br/>isolated"]
-            ProfState["Agent state<br/>isolated"]
+            ProfState["ProfileContext<br/>completion_score"]
         end
 
-        subgraph SubThread2["JobDiscoveryAgent<br/>ThreadID: abc123:JobDiscoveryAgent"]
+        subgraph SubThread2["JobDiscoveryAgent<br/>ThreadID: abc123:job_discovery"]
             JobHistory["Message history<br/>isolated"]
-            JobState["Agent state<br/>isolated"]
+            JobState["JobDiscoveryContext"]
         end
 
-        subgraph SubThread3["OutreachAgent<br/>ThreadID: abc123:OutreachAgent"]
+        subgraph SubThread3["OutreachAgent<br/>ThreadID: abc123:outreach"]
             OutHistory["Message history<br/>isolated"]
-            OutState["Agent state<br/>isolated"]
+            OutState["OutreachContext"]
+        end
+
+        subgraph SubThread4["JDGeneratorAgent<br/>ThreadID: abc123:jd_generator"]
+            JDHistory["Message history<br/>isolated"]
+            JDState["JDGeneratorContext"]
+        end
+
+        subgraph SubThread5["CandidateSearchAgent<br/>ThreadID: abc123:candidate_search"]
+            CandHistory["Message history<br/>isolated"]
+            CandState["CandidateSearchContext"]
         end
     end
 
     OrchestratorThread -->|parent| SubThread1
     OrchestratorThread -->|parent| SubThread2
     OrchestratorThread -->|parent| SubThread3
+    OrchestratorThread -->|parent| SubThread4
+    OrchestratorThread -->|parent| SubThread5
 
     SubThread1 -.->|no cross-talk| SubThread2
     SubThread1 -.->|no cross-talk| SubThread3
@@ -149,6 +157,8 @@ graph TB
     style SubThread1 fill:#e1f5ff
     style SubThread2 fill:#f3e5f5
     style SubThread3 fill:#e8f5e9
+    style SubThread4 fill:#fff3e0
+    style SubThread5 fill:#fce4ec
 ```
 
 ## Async Isolation via ContextVar
@@ -156,21 +166,21 @@ graph TB
 ```mermaid
 graph TB
     subgraph Main["Main Thread"]
-        Task1["Task 1<br/>ThreadID: abc123:Agent1"]
-        Task2["Task 2<br/>ThreadID: abc123:Agent2"]
-        Task3["Task 3<br/>ThreadID: abc123:Agent3"]
+        Task1["Task 1<br/>ThreadID: abc123:profile"]
+        Task2["Task 2<br/>ThreadID: def456:job_discovery"]
+        Task3["Task 3<br/>ThreadID: ghi789:outreach"]
     end
 
     subgraph ContextVars["ContextVar Storage"]
-        CV1["Token for Task 1<br/>context_var → AppContext 1"]
-        CV2["Token for Task 2<br/>context_var → AppContext 2"]
-        CV3["Token for Task 3<br/>context_var → AppContext 3"]
+        CV1["Token for Task 1<br/>context_var → ProfileContext"]
+        CV2["Token for Task 2<br/>context_var → JobDiscoveryContext"]
+        CV3["Token for Task 3<br/>context_var → OutreachContext"]
     end
 
     subgraph Isolation["Isolation Guarantee"]
-        I1["Task 1 calls<br/>get_context()<br/>→ AppContext 1"]
-        I2["Task 2 calls<br/>get_context()<br/>→ AppContext 2"]
-        I3["Task 3 calls<br/>get_context()<br/>→ AppContext 3"]
+        I1["Task 1 calls<br/>get_context()<br/>→ ProfileContext"]
+        I2["Task 2 calls<br/>get_context()<br/>→ JobDiscoveryContext"]
+        I3["Task 3 calls<br/>get_context()<br/>→ OutreachContext"]
     end
 
     Task1 -->|set| CV1
@@ -194,31 +204,33 @@ sequenceDiagram
     participant Session as Chainlit Session
     participant AppPy as app.py
     participant ContextMgr as ContextVar Manager
-    participant Agent as Agent
+    participant Orch as OrchestratorAgent
+    participant Worker as Worker Agent
     participant DataStore as Data Store
 
     User->>Session: Start conversation
+    Session->>AppPy: on_chat_start()
+    AppPy->>AppPy: Authenticate user<br/>Load profile metadata
+
+    User->>Session: Send message
     Session->>AppPy: on_message(message)
 
-    AppPy->>AppPy: Load profile from<br/>PROFILE_PATH
-
-    AppPy->>AppPy: Build AppContext<br/>with profile, history
+    AppPy->>AppPy: Build AppContext<br/>(thread_id, first_name, display_name)
 
     AppPy->>ContextMgr: context_var.set(app_context)<br/>returns token
 
-    ContextMgr->>Agent: Invoke agent with context
+    AppPy->>Orch: orchestrator.invoke(message, context)
 
-    Agent->>ContextMgr: get_context()<br/>retrieve AppContext
+    Orch->>Orch: Apply middleware<br/>(summarization, personalization)
+    Orch->>Worker: Route to specialist via worker tool
+    Worker->>Worker: context_factory creates<br/>agent-specific Context
 
-    Agent->>Agent: Use context<br/>profile, history, prefs
+    Worker->>DataStore: Execute tools<br/>(read/write JSON)
 
-    Agent->>DataStore: Update profile<br/>or state
+    DataStore->>DataStore: Persist to JSON/SQLite
 
-    DataStore->>DataStore: Persist to JSON/DB
-
-    Agent-->>AppPy: Return results
-
-    AppPy->>ContextMgr: token.reset()<br/>cleanup context
+    Worker-->>Orch: Return results
+    Orch-->>AppPy: Return response
 
     AppPy-->>Session: Send response<br/>to Chainlit
 
@@ -229,21 +241,21 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    ProfilePath["PROFILE_PATH<br/>env variable<br/>e.g., /path/to/profile.json"]
+    ProfilePath["PROFILE_PATH<br/>env variable<br/>default: data/miro_profile.json"]
 
     LoadProfile["load_profile()<br/>core/profile.py"]
 
-    CheckCache["Check in-memory<br/>cache"]
+    CheckCache["Check module-level<br/>cache"]
 
-    Cache["Profile cache<br/>dictionary"]
+    Cache["Profile cache<br/>(module variable)"]
 
     ReadFile["Read JSON file<br/>from disk"]
 
-    Parse["Parse JSON<br/>Validate schema"]
+    Parse["Parse JSON"]
 
-    StoreCache["Store in cache<br/>for future use"]
+    StoreCache["Store in cache"]
 
-    ProfileObj["UserProfile<br/>object"]
+    ProfileObj["Profile dict"]
 
     ProfilePath --> LoadProfile
     LoadProfile --> CheckCache
@@ -258,33 +270,31 @@ graph TB
     Cache --> ProfileObj
 ```
 
-## Context Cleanup
+## Checkpointing (LangGraph)
 
 ```mermaid
 graph TB
-    Token["ContextVar token<br/>from context_var.set()"]
+    Checkpointer["MemorySaver<br/>(in-memory checkpointer)"]
 
-    AgentExec["Agent execution<br/>completes"]
+    AgentState["Agent state<br/>(messages, tool results)"]
 
-    AgentExec --> Token
+    SaveState["Save checkpoint<br/>after each step"]
 
-    Reset["token.reset()<br/>restore previous value"]
+    ResumeState["Resume from checkpoint<br/>(for HITL interrupts)"]
 
-    Cleanup["ContextVar<br/>cleaned up"]
-
-    NextTask["Next task<br/>fresh context"]
-
-    Token --> Reset
-    Reset --> Cleanup
-    Cleanup --> NextTask
+    Checkpointer --> SaveState
+    Checkpointer --> ResumeState
+    AgentState --> SaveState
+    ResumeState --> AgentState
 ```
 
 ## Key Design Principles
 
-1. **ContextVar Isolation** — Each async task gets its own AppContext via contextvars
-2. **ThreadID Namespacing** — Parent:Child hierarchy prevents history cross-contamination
-3. **Profile Caching** — User profile loaded once and cached for session
-4. **Preference Persistence** — User settings maintained across conversation
-5. **Cleanup** — ContextVar tokens reset after agent execution
+1. **ContextVar Isolation** — Each async task gets its own context via contextvars
+2. **ThreadID Namespacing** — `{parent}:{agent_name}` hierarchy prevents history cross-contamination
+3. **Agent-Specific Contexts** — Each agent type has its own Context subclass (ProfileContext with completion_score, etc.)
+4. **Profile Caching** — User profile loaded once and cached at module level
+5. **LangGraph Checkpointing** — MemorySaver enables pause/resume for HITL workflows
 6. **No Global State** — All context passed explicitly, enabling concurrent requests
 7. **Session Binding** — AppContext tied to Chainlit session lifecycle
+8. **Worker Agent Context Factory** — Each worker invocation creates a fresh agent-specific context

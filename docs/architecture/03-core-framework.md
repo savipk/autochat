@@ -7,7 +7,7 @@ The foundational components that power agent behavior, configuration, and orches
 ```mermaid
 graph TB
     subgraph BaseAgentModule["BaseAgent (core/agent/base.py)"]
-        BaseAgent["BaseAgent<br/>async invoke(message, context)<br/>async stream(message, context)<br/>Middleware stack application"]
+        BaseAgent["BaseAgent<br/>async invoke(message, context)<br/>async stream(message, context)<br/>get_state() / resume()<br/>Middleware stack application"]
         Invoke["invoke()<br/>Single response"]
         Stream["stream()<br/>Token streaming"]
         MiddlewareApply["Middleware Processing<br/>Applied in order"]
@@ -19,9 +19,11 @@ graph TB
         ConfigDesc["description: str"]
         ConfigLLM["llm: BaseChatModel"]
         ConfigTools["tools: List[Tool]"]
+        ConfigSystemPrompt["system_prompt: str"]
         ConfigMiddleware["middleware: List[Middleware]"]
         ConfigStateSchema["state_schema: Type"]
         ConfigContextSchema["context_schema: Type"]
+        ConfigCheckpointer["checkpointer: BaseCheckpointSaver"]
         ConfigContextFactory["context_factory: Callable"]
     end
 
@@ -30,13 +32,13 @@ graph TB
         RegisterAgent["register(agent_name, agent)"]
         LookupAgent["get(agent_name) → Agent"]
         ListAgents["list_agents() → Names"]
+        ContainsAgent["__contains__(name) → bool"]
     end
 
     subgraph StateModule["State Management (core/state.py)"]
-        BaseContext["BaseContext<br/>Parent class for context"]
-        AppContext["AppContext<br/>Application-wide context<br/>contextvars.ContextVar"]
+        BaseContext["BaseContext<br/>thread_id: str"]
+        AppContext["AppContext(BaseContext)<br/>first_name: str<br/>display_name: str"]
         ContextVars["ContextVar<br/>Thread-safe context"]
-        SessionData["Session data<br/>Profile, preferences, etc."]
     end
 
     subgraph LLMModule["LLM Factory (core/llm.py)"]
@@ -44,25 +46,29 @@ graph TB
         AzureOpenAI["Azure OpenAI Client<br/>Thread-safe"]
     end
 
-    subgraph ProfileModule["Profile Management (core/profile.py)"]
-        LoadProfile["load_profile()<br/>JSON caching"]
-        ProfilePath["PROFILE_PATH env var"]
-        ProfileData["User profile data"]
+    subgraph ProfileModule["Profile Management"]
+        LoadProfile["load_profile()<br/>core/profile.py<br/>JSON caching"]
+        ProfilePath["PROFILE_PATH env var<br/>default: data/miro_profile.json"]
+        ProfileScore["compute_completion_score()<br/>core/profile_score.py"]
+        ProfileSchema["profile_schema.py<br/>Section registry & validation"]
+        ProfileManager["ProfileManager<br/>core/profile_manager.py<br/>Backup & restore"]
+        ProfileRoutes["profile_routes.py<br/>FastAPI routes for editor"]
     end
 
     subgraph SkillModule["Skill Registry (core/skills/)"]
-        Skill["Skill<br/>Knowledge unit"]
+        Skill["Skill<br/>name, description, path, tags<br/>lazy content loading"]
         SkillRegistry["SkillRegistry<br/>Dynamic loading"]
         LoaderTool["create_skill_loader_tool()<br/>LangChain tool"]
         SkillContent["Skill content<br/>Fetched at runtime"]
     end
 
     subgraph ProtocolModule["A2A Protocol (core/agent/protocol.py)"]
-        Task["Task<br/>Agent work unit"]
-        TaskState["TaskState<br/>Execution state"]
-        TaskMessage["TaskMessage<br/>Inter-agent message"]
-        AgentCard["AgentCard<br/>UI representation"]
-        AgentSkill["AgentSkill<br/>Capability descriptor"]
+        Task["Task<br/>id, state, messages, metadata"]
+        TaskState["TaskState<br/>SUBMITTED | WORKING |<br/>INPUT_REQUIRED | COMPLETED | FAILED"]
+        TaskResult["TaskResult<br/>task_id, state, messages, artifacts"]
+        TaskMessage["TaskMessage<br/>role, content, metadata"]
+        AgentCard["AgentCard<br/>name, description, skills, url"]
+        AgentSkill["AgentSkill<br/>name, description, tags"]
     end
 
     BaseAgent --> Invoke
@@ -73,23 +79,27 @@ graph TB
     Config --> ConfigDesc
     Config --> ConfigLLM
     Config --> ConfigTools
+    Config --> ConfigSystemPrompt
     Config --> ConfigMiddleware
     Config --> ConfigStateSchema
     Config --> ConfigContextSchema
+    Config --> ConfigCheckpointer
     Config --> ConfigContextFactory
 
     Registry --> RegisterAgent
     Registry --> LookupAgent
     Registry --> ListAgents
+    Registry --> ContainsAgent
 
     AppContext --> BaseContext
     AppContext --> ContextVars
-    ContextVars --> SessionData
 
     LLMFactory --> AzureOpenAI
 
     LoadProfile --> ProfilePath
-    LoadProfile --> ProfileData
+    LoadProfile --> ProfileScore
+    ProfileScore --> ProfileSchema
+    ProfileManager --> LoadProfile
 
     SkillRegistry --> Skill
     SkillRegistry --> LoaderTool
@@ -116,6 +126,7 @@ graph TB
 - Wraps LangChain's agent creation
 - Supports async `invoke()` for single responses
 - Supports async `stream()` for token streaming
+- Supports `get_state()` and `resume()` for HITL interrupt handling
 - Applies middleware stack in order to state
 
 ### AgentConfig
@@ -123,36 +134,47 @@ graph TB
 - **description**: Purpose/capabilities
 - **llm**: Azure OpenAI language model
 - **tools**: LangChain tools available to agent
+- **system_prompt**: System prompt string
 - **middleware**: Ordered list of middleware functions
 - **state_schema**: Pydantic model for agent state
-- **context_schema**: Type for AppContext
-- **context_factory**: Callable to build context
+- **context_schema**: Type for context
+- **checkpointer**: LangGraph checkpoint saver for state persistence
+- **context_factory**: Callable to build context from thread_id
 
 ### AgentRegistry
 - Singleton registry for agent lookup
 - Thread-safe registration and retrieval
 - Enables dynamic agent discovery
+- Supports `__contains__` for membership check
 
 ### AppContext
-- Global context passed via `contextvars.ContextVar`
-- Avoids global state across async calls
-- Contains session data, user profile, preferences
+- `BaseContext` provides `thread_id: str`
+- `AppContext` extends with `first_name: str` and `display_name: str`
+- Passed via `contextvars.ContextVar` for async isolation
+- No global state — each async task gets its own context
 
 ### LLM Factory
 - Singleton Azure OpenAI client
 - Thread-safe model access
-- Supports temperature configuration
+- Default temperature: 0.7
 
 ### Profile Management
-- Loads user profile JSON with caching
-- Path configurable via `PROFILE_PATH` env var
+- **load_profile()**: Loads user profile JSON with module-level caching
+- **compute_completion_score()**: Returns % completion (0-100)
+- **normalize_profile()**: Normalizes structure for consistent rendering
+- **ProfileManager**: Handles backup creation and rollback for profile changes
+- **profile_routes.py**: FastAPI routes mounted on Chainlit app for profile editor panel
+- Path configurable via `PROFILE_PATH` env var (default: `data/miro_profile.json`)
 
 ### Skill Registry
-- Dynamic skill loading at runtime
-- Creates LangChain tools for agents to fetch skill content
-- Used by JD Generator and other agents
+- `Skill` dataclass with lazy content loading via `load_content()`
+- `SkillRegistry` for dynamic skill registration and lookup
+- `create_skill_loader_tool()` creates a LangChain tool for agents to fetch skill content
+- Used by JD Generator agent (1 registered skill: `jd_standards`)
 
 ### A2A Protocol
 - Inter-agent communication types
-- Task, TaskState, TaskMessage for structured workflows
-- AgentCard, AgentSkill for UI and capability description
+- `Task` / `TaskState` / `TaskResult` for structured agent workflows
+- `TaskMessage` for inter-agent messages with role and content
+- `AgentCard` / `AgentSkill` for capability advertisement
+- `AgentProtocol` base class with `send_task()` interface

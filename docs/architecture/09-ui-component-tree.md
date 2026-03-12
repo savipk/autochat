@@ -17,12 +17,23 @@ graph TB
         CustomElement["Custom Element<br/>(React component)"]
     end
 
-    subgraph ReactComponents["React Components<br/>(public/elements/)"]
+    subgraph ReactComponents["React Components<br/>(public/elements/) — 10 total"]
         JobCard["JobCard.jsx"]
         ProfileScore["ProfileScore.jsx"]
         DraftMessage["DraftMessage.jsx"]
         CandidateCard["CandidateCard.jsx"]
         SkillsCard["SkillsCard.jsx"]
+        SendConfirmation["SendConfirmation.jsx"]
+        ProfileUpdateConfirmation["ProfileUpdateConfirmation.jsx"]
+        RequisitionCard["RequisitionCard.jsx"]
+        JdQaCard["JdQaCard.jsx"]
+        JdFinalizedCard["JdFinalizedCard.jsx"]
+    end
+
+    subgraph SidePanels["Side Panels (SSE-driven)"]
+        ProfilePanel["Profile Editor Panel"]
+        JDEditorPanel["JD Editor Panel"]
+        JobDetailPanel["Job Detail Panel"]
     end
 
     subgraph Styling["Microsoft Teams Styling"]
@@ -42,77 +53,69 @@ graph TB
     CustomElement --> DraftMessage
     CustomElement --> CandidateCard
     CustomElement --> SkillsCard
+    CustomElement --> SendConfirmation
+    CustomElement --> ProfileUpdateConfirmation
+    CustomElement --> RequisitionCard
+    CustomElement --> JdQaCard
+    CustomElement --> JdFinalizedCard
 
     JobCard --> Styling
     ProfileScore --> Styling
     DraftMessage --> Styling
     CandidateCard --> Styling
     SkillsCard --> Styling
+    SendConfirmation --> Styling
+    ProfileUpdateConfirmation --> Styling
+    RequisitionCard --> Styling
+    JdQaCard --> Styling
+    JdFinalizedCard --> Styling
 ```
+
+## Component → Tool Mapping
+
+| Component | Triggered By | Purpose |
+|-----------|-------------|---------|
+| `JobCard.jsx` | `get_matches` | Grid of job listing cards with View button |
+| `ProfileScore.jsx` | `profile_analyzer` | Completion % gauge with section breakdown |
+| `SkillsCard.jsx` | `infer_skills` | Interactive skill selection with evidence citations, save to profile |
+| `DraftMessage.jsx` | `draft_message` | Message preview with recipient, body, send flow |
+| `SendConfirmation.jsx` | `send_message` | Confirmation with recipient name, type, timestamp |
+| `ProfileUpdateConfirmation.jsx` | `update_profile` / `rollback_profile` (HITL) | Before/after diff with Approve/Reject buttons |
+| `JdQaCard.jsx` | `ask_jd_qa` | Q&A answer with citations and HM contact suggestion |
+| `CandidateCard.jsx` | `search_candidates` | Candidate grid with skills and match info |
+| `RequisitionCard.jsx` | `get_requisition` | Job requisition details for JD authoring |
+| `JdFinalizedCard.jsx` | `jd_finalize` | Finalization summary with next steps |
 
 ## JobCard Component
 
 ```mermaid
 graph TB
-    JobCard["JobCard.jsx<br/>Job Listing Card"]
+    JobCard["JobCard.jsx<br/>Job Listing Grid"]
 
     subgraph Data["Input Props"]
-        Title["title: string<br/>Job title"]
-        Company["company: string<br/>Company name"]
-        Location["location: string<br/>Job location"]
-        Description["description: string<br/>Job description"]
-        Skills["requiredSkills: string[]<br/>Required skills"]
-        Salary["salary: string<br/>Compensation"]
-        Link["link: string<br/>Application URL"]
+        Jobs["jobs: Array<br/>List of job matches"]
+        TotalAvailable["totalAvailable: number"]
+        HasMore["hasMore: boolean"]
     end
 
-    subgraph Layout["Card Layout"]
-        Header["Header section<br/>Title + Company"]
-        Details["Details section<br/>Location + Salary"]
-        SkillBadges["Skill badges<br/>Visual list"]
-        DescText["Description<br/>Rich text"]
+    subgraph PerJob["Per Job Card"]
+        Title["title: string"]
+        ID["id: string (e.g., 331525BR)"]
+        Location["location: string"]
+        OrgLine["orgLine: string"]
+        MatchScore["matchScore: number"]
+        MatchingSkills["matchingSkills: string[]"]
+        DaysAgo["daysAgo: number"]
+        IsNew["isNewToUser: boolean"]
     end
 
     subgraph Buttons["Action Buttons"]
-        ViewBtn["View Full Job<br/>Primary button<br/>#6264A7"]
-        ApplyBtn["Apply Now<br/>Primary button<br/>#6264A7"]
-        SaveBtn["Save for Later<br/>Outline button"]
-        ShareBtn["Share<br/>Ghost button"]
-    end
-
-    subgraph Handlers["Event Handlers"]
-        OnView["onClick view<br/>Open job detail"]
-        OnApply["onClick apply<br/>Submit application"]
-        OnSave["onClick save<br/>Save to profile"]
-        OnShare["onClick share<br/>Copy link"]
+        ViewBtn["View<br/>Primary button<br/>#6264A7"]
     end
 
     JobCard --> Data
-    Data --> Title
-    Data --> Company
-    Data --> Location
-    Data --> Description
-    Data --> Skills
-    Data --> Salary
-    Data --> Link
-
-    JobCard --> Layout
-    Layout --> Header
-    Layout --> Details
-    Layout --> SkillBadges
-    Layout --> DescText
-
+    Data --> PerJob
     JobCard --> Buttons
-    Buttons --> ViewBtn
-    Buttons --> ApplyBtn
-    Buttons --> SaveBtn
-    Buttons --> ShareBtn
-
-    Buttons --> Handlers
-    Handlers --> OnView
-    Handlers --> OnApply
-    Handlers --> OnSave
-    Handlers --> OnShare
 ```
 
 ## ProfileScore Component
@@ -122,38 +125,75 @@ graph TB
     ProfileScore["ProfileScore.jsx<br/>Profile Analysis Card"]
 
     subgraph Data["Input Props"]
-        Name["name: string<br/>User name"]
-        Score["overallScore: number<br/>0-100"]
-        Scores["categoryScores: {<br/>  technical: 85,<br/>  experience: 90,<br/>  education: 75<br/>}"]
-        Skills["skills: string[]<br/>Detected skills"]
-        Summary["summary: string<br/>Analysis summary"]
+        Score["completionScore: number<br/>0-100"]
+        SectionScores["sectionScores: {<br/>  experience: number,<br/>  skills: number,<br/>  education: number,<br/>  ...<br/>}"]
+        Missing["missingSections: string[]"]
     end
 
     subgraph Display["Display Elements"]
-        Avatar["Avatar<br/>User image"]
-        ScoreBar["Score bar<br/>Visual progress"]
-        CategoryBreakdown["Category breakdown<br/>Sub-scores"]
-        SkillTags["Skill tags<br/>Colored badges"]
-        Analysis["Analysis text<br/>Key findings"]
-    end
-
-    subgraph Buttons["Action Buttons"]
-        EditBtn["Edit Profile<br/>Primary button<br/>#6264A7"]
-        ExportBtn["Export Profile<br/>Outline button"]
-        UpdateBtn["Update Skills<br/>Primary button"]
-        ViewDetailBtn["View Details<br/>Ghost button"]
-    end
-
-    subgraph TeamsStyling["Teams Styling"]
-        PrimaryStyle["Primary:<br/>backgroundColor: #6264A7<br/>color: #fff<br/>className: font-medium rounded"]
-        OutlineStyle["Outline:<br/>variant: outline<br/>borderColor: #6264A7<br/>color: #6264A7"]
-        GhostStyle["Ghost:<br/>variant: ghost<br/>color: #6264A7"]
+        ScoreGauge["Completion gauge<br/>Visual progress"]
+        SectionBreakdown["Section breakdown<br/>Individual scores"]
+        MissingSections["Missing sections<br/>Improvement suggestions"]
     end
 
     ProfileScore --> Data
     ProfileScore --> Display
-    ProfileScore --> Buttons
-    Buttons --> TeamsStyling
+```
+
+## SkillsCard Component
+
+```mermaid
+graph TB
+    SkillsCard["SkillsCard.jsx<br/>Interactive Skills Card"]
+
+    subgraph Data["Input Props"]
+        TopSkills["topSkills: string[]<br/>Top 3 inferred skills"]
+        AddSkills["additionalSkills: string[]<br/>Additional inferred skills"]
+        Evidence["evidence: Array<{<br/>  skill, source, detail<br/>}>"]
+        Confidence["confidence: number (0-1)"]
+        CurrentTop["currentTopSkills: string[]"]
+        CurrentAdd["currentAdditionalSkills: string[]"]
+    end
+
+    subgraph Features["Features"]
+        Select["Select/deselect skills"]
+        AddCustom["Add custom skills via text field"]
+        ViewEvidence["View evidence for each skill"]
+        SaveToProfile["Save selected → update_profile"]
+    end
+
+    SkillsCard --> Data
+    SkillsCard --> Features
+```
+
+## ProfileUpdateConfirmation Component
+
+```mermaid
+graph TB
+    PUC["ProfileUpdateConfirmation.jsx<br/>HITL Approval Card"]
+
+    subgraph Data["Input Props"]
+        Section["section: string<br/>(skills, experience, rollback)"]
+        UpdatedFields["updated_fields: object<br/>Proposed changes"]
+        CurrentValues["current_values: object<br/>Current state"]
+        PrevScore["previous_completion_score: number"]
+        NewScore["estimated_new_score: number"]
+        Payload["payload: string (JSON)<br/>For action callback"]
+    end
+
+    subgraph Display["Display"]
+        BeforeAfter["Before/After diff<br/>Current → Proposed"]
+        ScoreChange["Score change<br/>e.g., 65% → 78%"]
+    end
+
+    subgraph Actions["Action Buttons"]
+        Approve["Approve<br/>Primary button #6264A7"]
+        Reject["Reject<br/>Outline button"]
+    end
+
+    PUC --> Data
+    PUC --> Display
+    PUC --> Actions
 ```
 
 ## DraftMessage Component
@@ -163,42 +203,25 @@ graph TB
     DraftMessage["DraftMessage.jsx<br/>Message Draft Card"]
 
     subgraph Data["Input Props"]
-        Template["template: string<br/>Message template"]
-        To["to: string<br/>Recipient email"]
-        Subject["subject: string<br/>Email subject"]
-        Body["body: string<br/>Message content"]
-        Personalization["personalization: object<br/>Template variables"]
+        RecipientName["recipient_name: string"]
+        SenderName["sender_name: string"]
+        MessageBody["message_body: string"]
+        JobTitle["job_title: string"]
+        MessageType["message_type: string<br/>(teams)"]
     end
 
-    subgraph Preview["Preview Section"]
-        Header["Subject line<br/>Recipient info"]
-        Content["Message preview<br/>Full draft text"]
-        Highlight["Highlighted<br/>personalized parts"]
-    end
-
-    subgraph EditTools["Edit Tools"]
-        TextEditor["Text editor<br/>Rich editing"]
-        Replace["Replace variable<br/>Re-personalize"]
-        Template["Use template<br/>Change template"]
+    subgraph Display["Display"]
+        Header["Recipient + sender info"]
+        Body["Message body preview"]
+        Context["Job context"]
     end
 
     subgraph Buttons["Action Buttons"]
-        SendBtn["Send Now<br/>Primary button<br/>#6264A7"]
-        ScheduleBtn["Schedule Send<br/>Primary button"]
-        SaveDraftBtn["Save Draft<br/>Outline button"]
-        PreviewBtn["Preview Email<br/>Ghost button"]
-        CancelBtn["Cancel<br/>Outline button"]
+        SendBtn["Send<br/>Primary button<br/>#6264A7"]
     end
 
     DraftMessage --> Data
-    Data --> Template
-    Data --> To
-    Data --> Subject
-    Data --> Body
-    Data --> Personalization
-
-    DraftMessage --> Preview
-    DraftMessage --> EditTools
+    DraftMessage --> Display
     DraftMessage --> Buttons
 ```
 
@@ -206,78 +229,28 @@ graph TB
 
 ```mermaid
 graph TB
-    CandidateCard["CandidateCard.jsx<br/>Candidate Profile Card"]
+    CandidateCard["CandidateCard.jsx<br/>Candidate Grid"]
 
     subgraph Data["Input Props"]
-        Name["name: string<br/>Candidate name"]
-        Title["currentRole: string<br/>Job title"]
-        Experience["experience: number<br/>Years of experience"]
-        Skills["skills: string[]<br/>Skill list"]
-        Location["location: string<br/>Location"]
-        SkillMatch["skillMatch: number<br/>% match to role"]
+        Candidates["candidates: Array"]
+        TotalAvailable["totalAvailable: number"]
+        HasMore["hasMore: boolean"]
     end
 
-    subgraph Layout["Card Layout"]
-        Header["Header<br/>Name + Title"]
-        Meta["Metadata<br/>Experience + Location"]
-        SkillBadges["Skill badges<br/>Match highlighting"]
-        Bio["Bio/Summary<br/>Brief background"]
-    end
-
-    subgraph Indicators["Match Indicators"]
-        MatchScore["Match score<br/>Visual indicator"]
-        GapAnalysis["Skill gaps<br/>Missing skills"]
-        Strengths["Strengths<br/>Top matches"]
+    subgraph PerCandidate["Per Candidate"]
+        Name["name: string"]
+        Title["currentRole: string"]
+        Skills["skills: string[]"]
+        Location["location: string"]
     end
 
     subgraph Buttons["Action Buttons"]
         ViewProfileBtn["View Profile<br/>Primary button<br/>#6264A7"]
-        ContactBtn["Send Message<br/>Primary button"]
-        ScheduleBtn["Schedule Call<br/>Outline button"]
-        MoreBtn["More options<br/>Ghost button"]
     end
 
     CandidateCard --> Data
-    Data --> Name
-    Data --> Title
-    Data --> Experience
-    Data --> Skills
-    Data --> Location
-    Data --> SkillMatch
-
-    CandidateCard --> Layout
-    CandidateCard --> Indicators
+    Data --> PerCandidate
     CandidateCard --> Buttons
-```
-
-## SkillsCard Component
-
-```mermaid
-graph TB
-    SkillsCard["SkillsCard.jsx<br/>Skills Display Card"]
-
-    subgraph Data["Input Props"]
-        Skills["skills: {<br/>  name: string,<br/>  level: string,<br/>  endorsements: number<br/>}[]"]
-        Categories["categories: string[]<br/>Skill categories"]
-    end
-
-    subgraph Display["Skill Display"]
-        SkillTag["Skill tag<br/>Name + Level"]
-        LevelIndicator["Level indicator<br/>Beginner/Intermediate/Expert"]
-        Endorsements["Endorsement count<br/>Social proof"]
-        Category["Category group<br/>Organize by type"]
-    end
-
-    subgraph Buttons["Action Buttons"]
-        AddSkillBtn["Add Skill<br/>Primary button<br/>#6264A7"]
-        EditBtn["Edit Skills<br/>Primary button"]
-        ValidateBtn["Get Endorsed<br/>Outline button"]
-        SortBtn["Sort/Filter<br/>Ghost button"]
-    end
-
-    SkillsCard --> Data
-    SkillsCard --> Display
-    SkillsCard --> Buttons
 ```
 
 ## Teams Button Styling Guide
@@ -288,22 +261,22 @@ graph TB
 
     subgraph Primary["Primary Button"]
         PrimaryCode["style={{<br/>  backgroundColor: '#6264A7',<br/>  color: '#fff'<br/>}}<br/>className='font-medium rounded'"]
-        PrimaryUse["Use for:<br/>Main actions<br/>Apply, Send, Save"]
+        PrimaryUse["Use for:<br/>Main actions<br/>View, Send, Approve, Save"]
     end
 
     subgraph Outline["Outline Button"]
         OutlineCode["variant='outline'<br/>style={{<br/>  borderColor: '#6264A7',<br/>  color: '#6264A7'<br/>}}<br/>className='font-medium rounded'"]
-        OutlineUse["Use for:<br/>Secondary actions<br/>Save for later<br/>Cancel"]
+        OutlineUse["Use for:<br/>Secondary actions<br/>Reject, Cancel"]
     end
 
     subgraph Ghost["Ghost Button"]
         GhostCode["variant='ghost'<br/>style={{<br/>  color: '#6264A7'<br/>}}<br/>className='rounded'"]
-        GhostUse["Use for:<br/>Tertiary/minimal<br/>View details<br/>More options"]
+        GhostUse["Use for:<br/>Tertiary/minimal<br/>View details, More"]
     end
 
     subgraph Disabled["Disabled State"]
         DisabledCode["Disabled primary:<br/>backgroundColor: '#464775'<br/>color: '#fff'<br/>cursor: not-allowed"]
-        DisabledUse["Use for:<br/>Saved state<br/>Already applied<br/>Unavailable action"]
+        DisabledUse["Use for:<br/>Saved state<br/>Already actioned<br/>Unavailable"]
     end
 
     TeamsStyleGuide --> Primary
@@ -351,39 +324,38 @@ graph TB
 
 ```mermaid
 sequenceDiagram
+    participant Worker as Worker Agent
     participant Adapter as Chainlit Adapter
     participant Component as React Component
-    participant Handler as Event Handler
-    participant Agent as Agent
+    participant User as User
+    participant App as app.py
 
-    Adapter->>Adapter: Convert agent result<br/>to component props
+    Worker-->>Adapter: JSON result via<br/>extract_tool_calls_from_messages()
 
-    Adapter->>Component: Pass props<br/>(data + config)
+    Adapter->>Adapter: render_tool_elements()<br/>Map tool name → component
+
+    Adapter->>Component: Pass props<br/>(data from tool result)
 
     Component->>Component: Render with<br/>Teams styling
 
-    Component-->>Adapter: Component instance
+    Component-->>User: Display in chat
 
-    Adapter->>Adapter: Wrap in<br/>cl.Element
+    User->>Component: Clicks button<br/>(e.g., Approve)
 
-    Component->>Handler: User clicks button
+    Component->>App: action_callback<br/>(e.g., approve_profile_update)
 
-    Handler->>Agent: Trigger action<br/>(apply, send, etc.)
-
-    Agent-->>Component: Update state<br/>or callback
-
-    Component->>Component: Re-render<br/>Updated state
+    App->>Worker: Resume agent<br/>with decision
 ```
 
 ## Key Design Rules
 
 1. **Teams Styling** — All buttons MUST follow Teams color scheme (#6264A7)
-2. **Consistent Buttons** — Primary/Outline/Ghost pattern across all cards
+2. **Consistent Buttons** — Primary/Outline/Ghost pattern across all 10 cards
 3. **Disabled State** — Use #464775 for disabled/saved state
-4. **Responsive Layout** — Cards adapt to mobile/tablet/desktop
-5. **Rich Text** — Support markdown and formatted text in descriptions
-6. **Action Handlers** — Button clicks trigger agent tools or callbacks
-7. **Error States** — Show validation errors inline or as toast notifications
-8. **Loading States** — Spinner/skeleton while data loads
-9. **Empty States** — Show meaningful message when no data
-10. **Accessibility** — ARIA labels, keyboard navigation, color contrast
+4. **HITL Cards** — ProfileUpdateConfirmation uses Approve/Reject action callbacks
+5. **Side Panels** — Profile editor, JD editor, and job details use SSE-driven panels (not card components)
+6. **No Duplicate Data** — LLM prompt instructs agent NOT to repeat data shown in cards
+7. **Action Handlers** — Button clicks trigger Chainlit action callbacks → agent resume
+8. **Pagination** — JobCard and CandidateCard support `hasMore` / `totalAvailable` for pagination
+9. **Evidence Display** — SkillsCard shows citation evidence for each inferred skill
+10. **Score Visualization** — ProfileScore and ProfileUpdateConfirmation show before/after completion scores

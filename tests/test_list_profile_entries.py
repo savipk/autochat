@@ -79,17 +79,15 @@ class TestListProfileEntries:
         assert "Engineer" in result["entries"][0]["summary"]
         assert "Acme" in result["entries"][0]["summary"]
 
-    def test_list_education_entries(self, profile_path):
+    def test_list_education_rejected(self, profile_path):
         result = self._run("education")
-        assert result["success"] is True
-        assert result["count"] == 1
-        assert "MIT" in result["entries"][0]["summary"]
+        assert result["success"] is False
+        assert "not allowed" in result["error"]
 
-    def test_list_language_entries(self, profile_path):
+    def test_list_language_rejected(self, profile_path):
         result = self._run("language")
-        assert result["success"] is True
-        assert result["count"] == 1
-        assert "English" in result["entries"][0]["summary"]
+        assert result["success"] is False
+        assert "not allowed" in result["error"]
 
     def test_unsupported_section(self, profile_path):
         result = self._run("bogus")
@@ -99,14 +97,12 @@ class TestListProfileEntries:
     def test_non_list_section_rejected(self, profile_path):
         result = self._run("careerLocationPreference")
         assert result["success"] is False
-        assert "not list-based" in result["error"]
+        assert "not allowed" in result["error"]
 
-    def test_empty_section(self, profile_path):
-        # Skills is not list-based, but experience with no entries should work
-        # Let's use a section alias
-        result = self._run("qualification")
-        assert result["success"] is True
-        assert result["count"] == 1
+    def test_skills_section_rejected(self, profile_path):
+        # Skills is not list-based and also not in ALLOWED_LIST_SECTIONS
+        result = self._run("skills")
+        assert result["success"] is False
 
     def test_root_level_profile_normalized(self, root_profile_path):
         """Entries at root level are found after normalization."""
@@ -116,11 +112,10 @@ class TestListProfileEntries:
         assert "Architect" in result["entries"][0]["summary"]
         assert "UBS" in result["entries"][0]["summary"]
 
-    def test_role_preference_entries(self, profile_path):
+    def test_role_preference_rejected(self, profile_path):
         result = self._run("careerRolePreference")
-        assert result["success"] is True
-        assert result["count"] == 1
-        assert "Tech Lead" in result["entries"][0]["summary"]
+        assert result["success"] is False
+        assert "not allowed" in result["error"]
 
     def test_empty_string_section(self, profile_path):
         result = self._run("")

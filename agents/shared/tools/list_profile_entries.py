@@ -15,6 +15,8 @@ from core.profile import load_profile
 from core.profile_score import normalize_profile
 from core.profile_schema import resolve_section, get_valid_section_names
 
+ALLOWED_LIST_SECTIONS = {"experience"}
+
 
 def _summarize_entry(section_name: str, entry: dict) -> str:
     """Build a human-readable one-line summary of a profile entry."""
@@ -71,9 +73,7 @@ def list_profile_entries(section: str) -> dict:
     entry the user is referring to.
 
     Args:
-        section: The profile section to list. Supported: experience, education
-                 (alias: qualification), careerAspirationPreference,
-                 careerRolePreference, language.
+        section: The profile section to list. Supported: experience.
     """
     return run_list_profile_entries(section)
 
@@ -88,6 +88,12 @@ def run_list_profile_entries(section: str) -> dict[str, Any]:
         return {
             "success": False,
             "error": f"Unknown section '{section}'. Supported: {get_valid_section_names()}",
+        }
+
+    if section_info.name not in ALLOWED_LIST_SECTIONS:
+        return {
+            "success": False,
+            "error": f"Listing entries for section '{section_info.name}' is not allowed. Only {', '.join(sorted(ALLOWED_LIST_SECTIONS))} is supported.",
         }
 
     if not section_info.list_field:

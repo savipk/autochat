@@ -25,6 +25,7 @@ from core.profile_schema import (
 from core.profile_score import compute_completion_score, normalize_profile
 
 VALID_OPERATIONS = ("merge", "replace", "add_entry", "edit_entry", "remove_entry")
+ALLOWED_UPDATE_SECTIONS = {"experience", "skills"}
 
 
 def _get_user_context() -> tuple[str, str]:
@@ -195,9 +196,7 @@ def update_profile(
     """Updates sections of the user's profile.
 
     Args:
-        section: The profile section to update. Supported: skills, experience,
-                 education (alias: qualification), careerAspirationPreference,
-                 careerLocationPreference, careerRolePreference, language.
+        section: The profile section to update. Supported: skills, experience.
         updates: Dict with section-specific updates. For skills, pass
                  {"skills": ["Python", "Docker", ...]} as a flat list, or
                  {"topSkills": [...], "additionalSkills": [...]} for explicit placement.
@@ -227,7 +226,13 @@ def run_update_profile(
     if section_info is None:
         return {
             "success": False,
-            "error": f"Update for section '{section}' is not yet supported. Supported: {get_valid_section_names()}",
+            "error": f"Update for section '{section}' is not yet supported. Supported: {', '.join(sorted(ALLOWED_UPDATE_SECTIONS))}",
+        }
+
+    if section_info.name not in ALLOWED_UPDATE_SECTIONS:
+        return {
+            "success": False,
+            "error": f"Updates to section '{section_info.name}' are not allowed. Only {', '.join(sorted(ALLOWED_UPDATE_SECTIONS))} can be updated.",
         }
 
     if operation not in VALID_OPERATIONS:

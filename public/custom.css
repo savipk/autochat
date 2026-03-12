@@ -48,12 +48,12 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   transition: margin-right 0.3s ease;
 }
 
-#root.autochat-panel-open {
+#root.hr-agent-panel-open {
   margin-right: 400px;
 }
 
 /* Panel: fixed to right edge, hidden off-screen by default */
-.autochat-profile-panel {
+.hr-agent-profile-panel {
   position: fixed;
   top: 0;
   right: -400px;
@@ -70,7 +70,7 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   transition: right 0.3s ease;
 }
 
-.autochat-profile-panel.open {
+.hr-agent-profile-panel.open {
   right: 0;
 }
 
@@ -428,11 +428,11 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
 
 /* ===== JD (Job Description) Side Panel ===== */
 
-#root.autochat-jd-panel-open {
+#root.hr-agent-jd-panel-open {
   margin-right: 400px;
 }
 
-.autochat-jd-panel {
+.hr-agent-jd-panel {
   position: fixed;
   top: 0;
   right: -400px;
@@ -449,7 +449,7 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   transition: right 0.3s ease;
 }
 
-.autochat-jd-panel.open {
+.hr-agent-jd-panel.open {
   right: 0;
 }
 
@@ -503,11 +503,11 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
 
 /* ===== JD Editor Side Panel ===== */
 
-#root.autochat-jd-editor-panel-open {
+#root.hr-agent-jd-editor-panel-open {
   margin-right: 400px;
 }
 
-.autochat-jd-editor-panel {
+.hr-agent-jd-editor-panel {
   position: fixed;
   top: 0;
   right: -400px;
@@ -524,7 +524,7 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   transition: right 0.3s ease;
 }
 
-.autochat-jd-editor-panel.open {
+.hr-agent-jd-editor-panel.open {
   right: 0;
 }
 
