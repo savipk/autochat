@@ -674,3 +674,9 @@ button.inline-flex.items-center.justify-center.gap-2.text-sm.font-medium.h-9.rou
   text-align: center;
   padding: 20px;
 }
+
+/* ===== Candidate Side Panel ===== */
+
+#root.hr-agent-candidate-panel-open {
+  margin-right: 400px;
+}

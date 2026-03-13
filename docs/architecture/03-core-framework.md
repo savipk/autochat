@@ -163,7 +163,7 @@ graph TB
 - **compute_completion_score()**: Returns % completion (0-100)
 - **normalize_profile()**: Normalizes structure for consistent rendering
 - **ProfileManager**: Handles backup creation and rollback for profile changes
-- **profile_routes.py**: FastAPI routes mounted on Chainlit app for profile editor panel
+- **profile_routes.py**: FastAPI routes mounted on the webapp for profile editor panel
 - Path configurable via `PROFILE_PATH` env var (default: `data/miro_profile.json`)
 
 ### Skill Registry

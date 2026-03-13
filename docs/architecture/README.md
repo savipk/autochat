@@ -153,7 +153,7 @@ Start with **01-system-architecture.md**, then **02-message-flow.md**
    - Composable and extensible
 
 6. **Adapter Pattern**
-   - Agent tool results → React components via ChainlitAdapter
+   - Agent tool results → React components via UI Adapter
    - 10 custom React components + SSE-driven side panels
    - `extract_tool_calls_from_messages()` unwraps inner tool calls
    - `extract_interrupts_from_messages()` extracts HITL interrupts
@@ -168,7 +168,7 @@ Start with **01-system-architecture.md**, then **02-message-flow.md**
 
 - **LLM**: Azure OpenAI
 - **Framework**: LangChain / LangGraph
-- **Web UI**: Chainlit
+- **Web UI**: HR Assistant App
 - **Frontend Components**: React (JSX)
 - **Styling**: Microsoft Teams design system (#6264A7)
 - **Storage**: JSON files + SQLite
@@ -228,7 +228,7 @@ docs/architecture/
 - **CLAUDE.md**: Project setup and commands
 - **agents/catalog.py**: Agent registration
 - **core/config.py**: Framework configuration
-- **.chainlit/config.toml**: Chainlit UI configuration
+- **.chainlit/config.toml**: UI configuration
 
 ---
 

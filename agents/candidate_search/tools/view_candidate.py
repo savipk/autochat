@@ -41,4 +41,7 @@ def view_candidate(employee_id: str) -> dict:
     Returns:
         Full employee record or error if not found.
     """
-    return run_view_candidate(employee_id)
+    try:
+        return run_view_candidate(employee_id)
+    except Exception as e:
+        return {"success": False, "error": str(e)}

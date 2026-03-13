@@ -74,6 +74,7 @@
   function openPanel() {
     if (_panelOpen) return;
     closeJdEditorPanel();
+    closeCandidatePanel();
     _panelOpen = true;
     _panelEl.classList.add("open");
     document.getElementById("root").classList.add("hr-agent-panel-open");
@@ -117,6 +118,7 @@
     if (event.type === "open_panel") {
       closeJdPanel();
       closeJdEditorPanel();
+      closeCandidatePanel();
       try { openPanel(); } catch (e) { /* ensure loadProfile still runs */ }
       loadProfile();
     } else if (event.type === "refresh") {
@@ -124,10 +126,12 @@
     } else if (event.type === "open_jd_panel") {
       closePanel();
       closeJdEditorPanel();
+      closeCandidatePanel();
       openJdPanel(event.job_id, event.job);
     } else if (event.type === "open_jd_editor") {
       closePanel();
       closeJdPanel();
+      closeCandidatePanel();
       // Populate reference JDs if provided
       if (event.similar_jds && Array.isArray(event.similar_jds)) {
         _similarJds = event.similar_jds;
@@ -143,6 +147,11 @@
       openJdEditorPanel();
     } else if (event.type === "refresh_jd_editor") {
       refreshJdEditorFromServer();
+    } else if (event.type === "open_candidate_panel") {
+      closePanel();
+      closeJdPanel();
+      closeJdEditorPanel();
+      openCandidatePanel(event.employeeId, event.candidate);
     }
   }
 
@@ -782,6 +791,7 @@
   function openJdPanel(jobId, jobData) {
     if (!_jdPanelEl) createJdPanel();
     closeJdEditorPanel();
+    closeCandidatePanel();
     var newId = jobId || "";
     // If already open for the same job, don't re-render
     if (_jdPanelOpen && newId === _currentJobId) return;
@@ -1365,6 +1375,146 @@
       var cb = e.target.closest("[data-jd-ref-id]");
       if (cb) {
         _selectedRefJds[cb.getAttribute("data-jd-ref-id")] = cb.checked;
+      }
+    });
+  }
+
+  // ===========================================================================
+  // Candidate Side Panel (view_candidate detail)
+  // ===========================================================================
+  var _candidatePanelEl = null;
+  var _candidatePanelOpen = false;
+  var _currentCandidateId = "";
+
+  function createCandidatePanel() {
+    _candidatePanelEl = document.createElement("div");
+    _candidatePanelEl.className = "hr-agent-jd-panel";
+    _candidatePanelEl.innerHTML = '<div class="profile-panel-loading">Loading candidate...</div>';
+    document.body.appendChild(_candidatePanelEl);
+  }
+
+  function openCandidatePanel(employeeId, candidateData) {
+    if (!_candidatePanelEl) createCandidatePanel();
+    var newId = employeeId || "";
+    if (_candidatePanelOpen && newId === _currentCandidateId) return;
+    _currentCandidateId = newId;
+    _candidatePanelOpen = true;
+    _candidatePanelEl.classList.add("open");
+    document.getElementById("root").classList.add("hr-agent-candidate-panel-open");
+    if (candidateData && typeof candidateData === "object" && candidateData.name) {
+      renderCandidatePanel(candidateData);
+    } else {
+      _candidatePanelEl.innerHTML = '<div class="profile-panel-loading">No candidate data available.</div>';
+    }
+  }
+
+  function closeCandidatePanel() {
+    if (!_candidatePanelOpen || !_candidatePanelEl) return;
+    _candidatePanelOpen = false;
+    _candidatePanelEl.classList.remove("open");
+    document.getElementById("root").classList.remove("hr-agent-candidate-panel-open");
+  }
+
+  function renderCandidatePanel(candidate) {
+    if (!_candidatePanelEl) return;
+
+    var name = candidate.name || "Unknown";
+    var employeeId = candidate.employeeId || "";
+    var title = candidate.businessTitle || "";
+    var rank = candidate.rank || {};
+    var rankLabel = (typeof rank === "object") ? (rank.label || rank.code || "") : String(rank);
+    var location = candidate.location || "";
+    var country = candidate.country || "";
+    var department = candidate.department || "";
+    var yearsAtCompany = candidate.yearsAtCompany;
+    var skills = candidate.skills || [];
+    var email = candidate.email || "";
+    var profileScore = candidate.profileCompletionScore;
+    var matchScore = candidate.matchScore;
+
+    var html = '';
+
+    // Header
+    html += '<div class="profile-panel-header">';
+    html += '  <div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '    <h2 style="margin:0;font-size:16px;font-weight:600;color:#1f2937">Candidate Profile</h2>';
+    html += '    <button class="profile-panel-close" data-candidate-action="close" title="Close">&times;</button>';
+    html += '  </div>';
+    if (employeeId) html += '  <div style="margin-top:4px;font-size:12px;color:#6b7280">ID: ' + esc(employeeId) + '</div>';
+    html += '</div>';
+
+    // Name area
+    html += '<div class="profile-readonly-info">';
+    html += '  <div class="info-name">' + esc(name) + '</div>';
+    if (title) html += '  <div class="info-detail">' + esc(title) + (rankLabel ? ' — ' + esc(rankLabel) : '') + '</div>';
+    if (location) html += '  <div class="info-detail">' + esc(location) + (country ? ', ' + esc(country) : '') + '</div>';
+    html += '</div>';
+
+    // Scrollable body
+    html += '<div class="profile-panel-body">';
+
+    // Details section
+    html += '<div class="profile-section">';
+    html += '<div class="profile-section-title">Details</div>';
+    if (department) {
+      html += '<div class="jd-detail-row"><span class="jd-detail-label">Department</span><span>' + esc(department) + '</span></div>';
+    }
+    if (yearsAtCompany !== undefined && yearsAtCompany !== null) {
+      html += '<div class="jd-detail-row"><span class="jd-detail-label">Years at Company</span><span>' + esc(String(yearsAtCompany)) + '</span></div>';
+    }
+    if (email) {
+      html += '<div class="jd-detail-row"><span class="jd-detail-label">Email</span><span>' + esc(email) + '</span></div>';
+    }
+    if (profileScore !== undefined && profileScore !== null) {
+      html += '<div class="jd-detail-row"><span class="jd-detail-label">Profile Score</span><span>' + esc(String(profileScore)) + '%</span></div>';
+    }
+    if (matchScore !== undefined && matchScore !== null) {
+      html += '<div class="jd-detail-row"><span class="jd-detail-label">Match Score</span><span>' + esc(String(matchScore)) + '</span></div>';
+    }
+    html += '</div>';
+
+    // Skills
+    if (skills.length > 0) {
+      html += '<div class="profile-section">';
+      html += '<div class="profile-section-title">Skills</div>';
+      html += '<div class="profile-tags">';
+      skills.forEach(function (skill) {
+        html += '<span class="profile-tag">' + esc(skill) + '</span>';
+      });
+      html += '</div>';
+      html += '</div>';
+    }
+
+    html += '</div>'; // end body
+
+    // Footer with actions
+    html += '<div class="profile-panel-footer">';
+    html += '<div class="profile-panel-actions jd-panel-actions">';
+    html += '<button class="btn-submit" data-candidate-action="draft-message" style="flex:1">Draft Message</button>';
+    html += '<button class="btn-save-draft" data-candidate-action="close" style="flex:1">Close</button>';
+    html += '</div>';
+    html += '</div>';
+
+    _candidatePanelEl.innerHTML = html;
+    attachCandidateEvents();
+  }
+
+  function attachCandidateEvents() {
+    if (!_candidatePanelEl) return;
+    _candidatePanelEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-candidate-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-candidate-action");
+
+      switch (action) {
+        case "close":
+          closeCandidatePanel();
+          break;
+        case "draft-message":
+          var nameEl = _candidatePanelEl.querySelector(".info-name");
+          var candidateName = nameEl ? nameEl.textContent : "";
+          window.populateChatInput("Draft a message to " + candidateName + " (" + _currentCandidateId + ")");
+          break;
       }
     });
   }

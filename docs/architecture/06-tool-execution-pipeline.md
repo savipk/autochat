@@ -146,7 +146,7 @@ graph TB
         FinalizeData["jd_finalize<br/>{finalized_at, next_steps}"]
     end
 
-    subgraph Adapter["Chainlit Adapter<br/>(core/adapters/chainlit_adapter.py)"]
+    subgraph Adapter["UI Adapter<br/>(core/adapters/chainlit_adapter.py)"]
         RenderTool["render_tool_elements()"]
         RenderInterrupt["render_interrupt_elements()"]
         ExtractCalls["extract_tool_calls_from_messages()"]
@@ -165,7 +165,7 @@ graph TB
         JdFinalizedCard["JdFinalizedCard.jsx<br/>Finalization summary"]
     end
 
-    subgraph ChainlitUI["Chainlit UI"]
+    subgraph WebappUI["HR Assistant App"]
         Message["cl.Message<br/>with custom elements"]
         Display["Browser render"]
         Interaction["User interaction<br/>clicks, approvals"]

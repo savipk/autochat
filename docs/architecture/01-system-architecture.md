@@ -7,7 +7,7 @@ High-level view of how all components interact in the HR Agent multi-agent orche
 ```mermaid
 graph TB
     subgraph UI["User Interface"]
-        Chainlit["Chainlit Web UI"]
+        Webapp["HR Assistant App"]
     end
 
     subgraph App["Application Layer"]
@@ -52,7 +52,7 @@ graph TB
     end
 
     subgraph Adapters["Adapter Layer"]
-        ChainlitAdapter["Chainlit Adapter<br/>Tool Result → UI Elements"]
+        UIAdapter["UI Adapter<br/>Tool Result → UI Elements"]
     end
 
     subgraph UIElements["UI Components (10)"]
@@ -68,7 +68,7 @@ graph TB
         JdFinalizedCard["JdFinalizedCard.jsx"]
     end
 
-    Chainlit -->|on_message| AppPy
+    Webapp -->|on_message| AppPy
     AppPy -->|invoke| Orchestrator
     Orchestrator -->|route| ProfileAgent
     Orchestrator -->|route| JobDiscoveryAgent
@@ -101,36 +101,36 @@ graph TB
     BaseAgent --> AgentConfig
     BaseAgent --> Middleware
 
-    Orchestrator --> ChainlitAdapter
-    ChainlitAdapter --> JobCard
-    ChainlitAdapter --> ProfileScore
-    ChainlitAdapter --> DraftMessage
-    ChainlitAdapter --> CandidateCard
-    ChainlitAdapter --> SkillsCard
-    ChainlitAdapter --> SendConfirmation
-    ChainlitAdapter --> ProfileUpdateConfirmation
-    ChainlitAdapter --> RequisitionCard
-    ChainlitAdapter --> JdQaCard
-    ChainlitAdapter --> JdFinalizedCard
+    Orchestrator --> UIAdapter
+    UIAdapter --> JobCard
+    UIAdapter --> ProfileScore
+    UIAdapter --> DraftMessage
+    UIAdapter --> CandidateCard
+    UIAdapter --> SkillsCard
+    UIAdapter --> SendConfirmation
+    UIAdapter --> ProfileUpdateConfirmation
+    UIAdapter --> RequisitionCard
+    UIAdapter --> JdQaCard
+    UIAdapter --> JdFinalizedCard
 
-    JobCard --> Chainlit
-    ProfileScore --> Chainlit
-    DraftMessage --> Chainlit
-    CandidateCard --> Chainlit
-    SkillsCard --> Chainlit
-    SendConfirmation --> Chainlit
-    ProfileUpdateConfirmation --> Chainlit
-    RequisitionCard --> Chainlit
-    JdQaCard --> Chainlit
-    JdFinalizedCard --> Chainlit
+    JobCard --> Webapp
+    ProfileScore --> Webapp
+    DraftMessage --> Webapp
+    CandidateCard --> Webapp
+    SkillsCard --> Webapp
+    SendConfirmation --> Webapp
+    ProfileUpdateConfirmation --> Webapp
+    RequisitionCard --> Webapp
+    JdQaCard --> Webapp
+    JdFinalizedCard --> Webapp
 
-    ChatDB -.->|persistent history| Chainlit
+    ChatDB -.->|persistent history| Webapp
 ```
 
 ## Key Components
 
-- **Chainlit UI**: Web-based chat interface with multi-user auth (5 users) and SQLite persistence
-- **app.py**: Entry point handling Chainlit lifecycle hooks (`on_chat_start`, `on_message`, `on_chat_resume`, action callbacks for HITL)
+- **HR Assistant App**: Web-based chat interface with multi-user auth (5 users) and SQLite persistence
+- **app.py**: Entry point handling app lifecycle hooks (`on_chat_start`, `on_message`, `on_chat_resume`, action callbacks for HITL)
 - **OrchestratorAgent**: Central routing agent that wraps specialists as worker agent tools via `_create_worker_agent()`
 - **Specialist Agents**: Domain-specific agents (Profile, Jobs, Outreach, JD Generator, Candidate Search)
 - **BaseAgent**: LangChain wrapper providing async `invoke()`/`stream()` with middleware stack and checkpointing

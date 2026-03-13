@@ -4,12 +4,14 @@ Detailed breakdown of each specialist agent and their tool sets.
 
 ## Specialist Agents Overview
 
+**Color key:** <span style="color:#4a8c6f">Backend tools (server-executed)</span> | <span style="color:#7a6cb5">Frontend tools (client-executed, UI actions & HITL)</span>
+
 ```mermaid
 graph TB
     subgraph Profile["ProfileAgent<br/>agents/profile/"]
         P1["profile_analyzer<br/>Profile scoring & analysis"]
         P2["infer_skills<br/>Auto-detect skills"]
-        P3["update_profile<br/>CRUD on profile sections"]
+        P3["update_profile<br/>CRUD on experience and skills sections"]
         P4["list_profile_entries<br/>List section entries & IDs"]
         P5["open_profile_panel<br/>Open editor panel"]
         P6["rollback_profile<br/>Restore from backup"]
@@ -68,6 +70,29 @@ graph TB
 
     C1 --> CData
     C2 --> CData
+
+    %% Backend tools — soft green
+    style P1 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style P2 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style P4 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style J1 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style J3 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style O1 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style O2 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style JG1 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style JG5 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style JG6 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+    style C1 fill:#d4edda,stroke:#4a8c6f,color:#1b4332
+
+    %% Frontend tools — soft lavender
+    style P3 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style P5 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style P6 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style J2 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style JG2 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style JG3 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style JG4 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
+    style C2 fill:#e8e0f0,stroke:#7a6cb5,color:#3b2d5e
 ```
 
 ## Agent Detail: ProfileAgent
@@ -264,3 +289,180 @@ Used by Profile, Job Discovery, and Outreach agents:
 | **Candidate Search** | 2 | search_candidates, view_candidate |
 | **JD Generator** | 6 | get_requisition, jd_search, jd_compose, section_editor, jd_finalize, load_skill |
 | **Total** | **19** | |
+
+## AG-UI Tool Classification
+
+Tools classified per the [AG-UI (Agent-User Interaction Protocol)](https://docs.ag-ui.com/) model.
+
+### Definitions
+
+- **Frontend tools** ([docs.ag-ui.com/concepts/tools](https://docs.ag-ui.com/concepts/tools)) — "Tools are defined in the frontend and passed to the agent during execution." The frontend defines the tool schema and executes the handler locally. The agent streams `ToolCallStart → ToolCallArgs → ToolCallEnd` to request execution; the frontend executes and returns `ToolCallResult` to the agent. Examples from AG-UI docs: `confirmAction`, `navigateTo`, `fetchUserData`.
+- **Backend tools** ([docs.ag-ui.com overview](https://docs.ag-ui.com/)) — "Visualize backend tool outputs in app and chat, emit side effects as first-class events." Tools attached to the agent backend, executed server-side. The frontend is notified and renders results (generative UI) but does NOT execute the tool.
+
+### Classification Test
+
+**Who executes the tool handler?** Frontend → frontend tool. Backend → backend tool.
+
+- **Frontend tool**: Tool controls the UI (SSE panel events) or gates on user decision (HITL interrupt/callback). The frontend executes the action or decision and returns the result to the agent.
+- **Backend tool**: Tool computes, queries, generates, or sends server-side. Frontend renders output as generative UI (custom elements) but does not execute the tool. Even if the card has buttons, if they only use `populateChatInput()` it's still backend — that's a chat suggestion, not frontend tool execution.
+
+### Frontend Tools (8)
+
+| # | Tool | Agent | AG-UI Rationale |
+|---|------|-------|----------------|
+| 1 | `open_profile_panel` | Profile | Pure UI navigation. Triggers `push_panel_event` SSE to open profile editor side panel. No server computation. AG-UI equivalent: `navigateTo`-style tool where frontend owns the panel-open action. |
+| 2 | `update_profile` | Profile | HITL gate. `HumanInTheLoopMiddleware` returns `interrupt` payload → agent blocks → frontend renders Approve/Reject card → user clicks → `@action_callback` resumes agent with decision. AG-UI equivalent: `confirmAction`. |
+| 3 | `rollback_profile` | Profile | HITL gate. Same interrupt/callback mechanism as `update_profile`. Agent blocks until frontend returns user's approve/reject decision. |
+| 4 | `view_job` | Job Discovery | UI navigation. Triggers SSE to open job details panel. Fetches job data but primary action is panel control. Same `navigateTo` pattern. |
+| 5 | `jd_search` | JD Generator | UI panel control + data. Triggers `push_panel_event("open_jd_editor", data={...})` SSE at app.py:436. Opens JD Editor side panel and passes search results. The panel open is a frontend action. |
+| 6 | `jd_compose` | JD Generator | UI panel control + state persistence. Saves draft to `JDDraftManager` at app.py:444, then triggers `push_panel_event("refresh_jd_editor")` SSE. The panel refresh with new content is a frontend action. |
+| 7 | `section_editor` | JD Generator | UI panel control + state persistence. Updates section in `JDDraftManager` via `update_section()` at app.py:455, then triggers `push_panel_event("refresh_jd_editor")` SSE. Same pattern as `jd_compose`. |
+| 8 | `view_candidate` | Candidate Search | Frontend tool — will open a candidate profile panel via SSE, matching the `view_job` pattern. 
+
+### Backend Tools (11)
+
+| # | Tool | Agent | AG-UI Rationale |
+|---|------|-------|----------------|
+| 1 | `profile_analyzer` | Profile | Server computes completion scores, section scores, gap analysis. Returns structured data → frontend renders ProfileScore card. Pure computation, no UI control. |
+| 2 | `infer_skills` | Profile | Server runs ML inference on work history to suggest skills. Returns skills with evidence → frontend renders SkillsCard. Pure inference, no UI control. |
+| 3 | `list_profile_entries` | Profile | Server queries profile section metadata (entries with IDs). Returns data. No custom UI element, no SSE. Pure data query. |
+| 4 | `get_matches` | Job Discovery | Server searches, filters, ranks job postings against profile. Returns ranked matches → frontend renders JobCard grid. Pure search/ranking. |
+| 5 | `ask_jd_qa` | Job Discovery | Server runs RAG pipeline over job descriptions to answer questions. Returns answer with citations → frontend renders JdQaCard. Pure computation. |
+| 6 | `draft_message` | Outreach | Server generates draft message text. Returns draft → frontend renders DraftMessage card. Card buttons use `populateChatInput()` (chat input suggestion only — not SSE, not HITL, not `@action_callback`). No `HumanInTheLoopMiddleware` on OutreachAgent. |
+| 7 | `send_message` | Outreach | Server sends Teams message. Returns confirmation → frontend renders SendConfirmation card. No HITL middleware, no `@action_callback`, no SSE. The "draft before send" rule is enforced by the LLM system prompt in `agents/outreach/prompts.py`, not middleware. |
+| 8 | `get_requisition` | JD Generator | Server fetches open job requisitions. Returns requisition data → frontend renders RequisitionCard. Pure data fetch. |
+| 9 | `jd_finalize` | JD Generator | Server marks JD as finalized. Returns status/timestamp → frontend renders JdFinalizedCard. No SSE, no panel control, no interrupt. Display-only card. |
+| 10 | `load_skill` | JD Generator | Server fetches skill definition text from SkillRegistry. Returns raw string for LLM context. No UI rendering at all. Pure internal data lookup. |
+| 11 | `search_candidates` | Candidate Search | Server queries employee directory by skills/level/location filters. Returns candidates with match scores → frontend renders CandidateCard grid. Pure search. |
+
+### Distribution by Agent
+
+| Agent | Frontend | Backend | Total |
+|-------|:--------:|:-------:|:-----:|
+| **Profile** | 3 (open_profile_panel, update_profile, rollback_profile) | 3 (profile_analyzer, infer_skills, list_profile_entries) | 6 |
+| **Job Discovery** | 1 (view_job) | 2 (get_matches, ask_jd_qa) | 3 |
+| **Outreach** | 0 | 2 (draft_message, send_message) | 2 |
+| **JD Generator** | 3 (jd_search, jd_compose, section_editor) | 3 (get_requisition, jd_finalize, load_skill) | 6 |
+| **Candidate Search** | 1 (view_candidate) | 1 (search_candidates) | 2 |
+| **Total** | **8** | **11** | **19** |
+
+---
+
+## Happy Flow: MyCareer Profile → Job Discovery → Outreach
+
+The sequence diagram below shows the end-to-end control and data flow for the MyCareer happy-flow scenario — from the initial Teams notification through profile analysis, skill updates, job matching, JD Q&A, and outreach message send.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Webapp as HR Assistant App
+    participant Orch as OrchestratorAgent
+    participant Profile as ProfileAgent
+    participant JobDisc as JobDiscoveryAgent
+    participant Outreach as OutreachAgent
+
+    Note over User, Outreach: ── Profile Analysis & Update ──
+
+    User->>Webapp: Clicks Teams notification → lands on HR Assistant
+    activate Webapp
+    Webapp->>Profile: first_touch_profile_middleware auto-triggers profile_analyzer
+    activate Profile
+    Profile-->>Webapp: Personalized greeting + profile scores (ProfileScore card)
+    deactivate Profile
+    Webapp-->>User: Displays greeting & score card
+
+    User->>Webapp: "Suggest skills I might be missing"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>Profile: Delegate to ProfileAgent
+    activate Profile
+    Profile->>Profile: infer_skills()
+    Profile-->>Orch: Inferred skills (e.g. A2A, MCP, RAG)
+    deactivate Profile
+    Orch-->>Webapp: Return inferred skills
+    deactivate Orch
+    Webapp-->>User: Displays SkillsCard with suggestions
+
+    User->>Webapp: "Update my profile with those skills"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>Profile: Delegate to ProfileAgent
+    activate Profile
+    Profile->>Profile: update_profile()
+    Note over Profile, User: HITL Gate — user must approve changes
+    Profile-->>Webapp: Pending update for approval
+    Webapp-->>User: Shows diff & approve/reject buttons
+    User->>Webapp: Approves update
+    Webapp->>Profile: Approval confirmed
+    Profile-->>Orch: Profile updated successfully
+    deactivate Profile
+    Orch-->>Webapp: Confirmation
+    deactivate Orch
+    Webapp-->>User: Profile updated confirmation
+
+    Note over User, Outreach: ── Job Discovery & Q&A ──
+
+    User->>Webapp: "Find matching roles for me"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>JobDisc: Delegate to JobDiscoveryAgent
+    activate JobDisc
+    JobDisc->>JobDisc: get_matches()
+    JobDisc-->>Orch: Ranked matches (e.g. "GenAI Lead")
+    deactivate JobDisc
+    Orch-->>Webapp: Return job matches
+    deactivate Orch
+    Webapp-->>User: Displays JobCard list
+
+    User->>Webapp: "What is the team size of the first role?"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>JobDisc: Delegate to JobDiscoveryAgent
+    activate JobDisc
+    JobDisc->>JobDisc: ask_jd_qa()
+    JobDisc-->>Orch: Answer found: "10-15"
+    deactivate JobDisc
+    Orch-->>Webapp: Return answer
+    deactivate Orch
+    Webapp-->>User: "The team size is 10-15"
+
+    User->>Webapp: "Which project is the first role focused on?"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>JobDisc: Delegate to JobDiscoveryAgent
+    activate JobDisc
+    JobDisc->>JobDisc: ask_jd_qa()
+    Note over JobDisc: Answer not found in JD
+    JobDisc-->>Orch: Not found → suggest contacting hiring manager
+    deactivate JobDisc
+    Orch-->>Webapp: Suggestion to reach out
+    deactivate Orch
+    Webapp-->>User: "That info isn't in the JD. Want to message the hiring manager?"
+
+    Note over User, Outreach: ── Outreach ──
+
+    User->>Webapp: "Yes, draft a message"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>Outreach: Delegate to OutreachAgent
+    activate Outreach
+    Outreach->>Outreach: draft_message()
+    Outreach-->>Orch: Coffee-chat message draft
+    deactivate Outreach
+    Orch-->>Webapp: Return draft
+    deactivate Orch
+    Webapp-->>User: Displays DraftMessage card
+
+    User->>Webapp: "Send the message"
+    Webapp->>Orch: Route message
+    activate Orch
+    Orch->>Outreach: Delegate to OutreachAgent
+    activate Outreach
+    Outreach->>Outreach: send_message()
+    Outreach-->>Orch: Message sent via Teams
+    deactivate Outreach
+    Orch-->>Webapp: Confirmation
+    deactivate Orch
+    Webapp-->>User: "Message sent!" confirmation
+    deactivate Webapp
+```

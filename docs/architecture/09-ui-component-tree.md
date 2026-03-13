@@ -6,13 +6,13 @@ React components in the frontend and their styling patterns.
 
 ```mermaid
 graph TB
-    subgraph Chainlit["Chainlit UI<br/>Web Interface"]
+    subgraph Webapp["HR Assistant App<br/>Web Interface"]
         ChatWindow["Chat Window"]
         MessageList["Message List"]
         InputBox["Message Input"]
     end
 
-    subgraph MessageComponent["cl.Message<br/>(Chainlit)"]
+    subgraph MessageComponent["cl.Message<br/>(Webapp)"]
         TextContent["Text content<br/>from agent"]
         CustomElement["Custom Element<br/>(React component)"]
     end
@@ -325,7 +325,7 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant Worker as Worker Agent
-    participant Adapter as Chainlit Adapter
+    participant Adapter as UI Adapter
     participant Component as React Component
     participant User as User
     participant App as app.py
@@ -355,7 +355,7 @@ sequenceDiagram
 4. **HITL Cards** — ProfileUpdateConfirmation uses Approve/Reject action callbacks
 5. **Side Panels** — Profile editor, JD editor, and job details use SSE-driven panels (not card components)
 6. **No Duplicate Data** — LLM prompt instructs agent NOT to repeat data shown in cards
-7. **Action Handlers** — Button clicks trigger Chainlit action callbacks → agent resume
+7. **Action Handlers** — Button clicks trigger action callbacks → agent resume
 8. **Pagination** — JobCard and CandidateCard support `hasMore` / `totalAvailable` for pagination
 9. **Evidence Display** — SkillsCard shows citation evidence for each inferred skill
 10. **Score Visualization** — ProfileScore and ProfileUpdateConfirmation show before/after completion scores

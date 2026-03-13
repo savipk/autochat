@@ -188,6 +188,12 @@ async def render_tool_elements(tool_name: str, tool_result: dict[str, Any]) -> l
                 candidate_card_props["hasMore"] = has_more
             elements.append(cl.CustomElement(name="CandidateCard", props=candidate_card_props))
 
+    elif tool_name == "view_candidate":
+        if tool_result.get("success") and tool_result.get("employeeId"):
+            elements.append(cl.CustomElement(name="CandidateCard", props={
+                "candidates": [tool_result],
+            }))
+
     return elements
 
 

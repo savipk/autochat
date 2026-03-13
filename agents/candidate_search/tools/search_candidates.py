@@ -100,7 +100,7 @@ def _matches_filters(employee: dict[str, Any], filters: dict[str, Any]) -> bool:
 
 def run_search_candidates(
     search_text: str = "",
-    filters: dict[str, Any] | None = None,
+    filters: dict | None = None,
     top_k: int = 5,
     offset: int = 0,
 ) -> dict[str, Any]:
@@ -156,7 +156,7 @@ def run_search_candidates(
 @tool
 def search_candidates(
     search_text: str = "",
-    filters: dict[str, Any] | None = None,
+    filters: dict | None = None,
     top_k: int = 5,
     offset: int = 0,
 ) -> dict:
@@ -171,9 +171,12 @@ def search_candidates(
     Returns:
         Dict with success, candidates, count, total_available, has_more, filters_applied.
     """
-    return run_search_candidates(
-        search_text=search_text,
-        filters=filters,
-        top_k=top_k,
-        offset=offset,
-    )
+    try:
+        return run_search_candidates(
+            search_text=search_text,
+            filters=filters,
+            top_k=top_k,
+            offset=offset,
+        )
+    except Exception as e:
+        return {"success": False, "error": str(e), "candidates": [], "count": 0, "total_available": 0, "has_more": False}

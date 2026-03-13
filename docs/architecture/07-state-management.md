@@ -7,7 +7,7 @@ How application state flows through the system and how threading is isolated via
 ```mermaid
 graph TB
     subgraph SessionInit["Session Initialization"]
-        UserSession["Chainlit Session<br/>session_id generated"]
+        UserSession["App Session<br/>session_id generated"]
         OnChatStart["on_chat_start callback<br/>Auth user, load profile"]
         AppPyHandler["on_message handler<br/>builds AppContext"]
     end
@@ -201,7 +201,7 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant Session as Chainlit Session
+    participant Session as App Session
     participant AppPy as app.py
     participant ContextMgr as ContextVar Manager
     participant Orch as OrchestratorAgent
@@ -232,7 +232,7 @@ sequenceDiagram
     Worker-->>Orch: Return results
     Orch-->>AppPy: Return response
 
-    AppPy-->>Session: Send response<br/>to Chainlit
+    AppPy-->>Session: Send response<br/>to Webapp
 
     Session-->>User: Display result
 ```
@@ -296,5 +296,5 @@ graph TB
 4. **Profile Caching** — User profile loaded once and cached at module level
 5. **LangGraph Checkpointing** — MemorySaver enables pause/resume for HITL workflows
 6. **No Global State** — All context passed explicitly, enabling concurrent requests
-7. **Session Binding** — AppContext tied to Chainlit session lifecycle
+7. **Session Binding** — AppContext tied to app session lifecycle
 8. **Worker Agent Context Factory** — Each worker invocation creates a fresh agent-specific context

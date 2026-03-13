@@ -6,16 +6,16 @@ Detailed sequence of how a user message flows through the entire HR Agent system
 
 ```mermaid
 sequenceDiagram
-    participant User as Chainlit User
-    participant UI as Chainlit UI
+    participant User as User
+    participant UI as HR Assistant App
     participant AppPy as app.py<br/>on_message
     participant Orchestrator as OrchestratorAgent
     participant Worker as Worker Agent<br/>(Wrapped Specialist)
     participant Tools as Agent Tools
     participant DataSrc as Data Source<br/>(JSON/DB)
-    participant Adapter as Chainlit Adapter
+    participant Adapter as UI Adapter
     participant CardComponent as UI Component<br/>(React Card)
-    participant ResponseUI as Chainlit Chat
+    participant ResponseUI as Chat UI
 
     User->>UI: Types message
     UI->>AppPy: Triggers on_message callback
@@ -61,7 +61,7 @@ sequenceDiagram
 sequenceDiagram
     participant User as User
     participant AppPy as app.py
-    participant Adapter as Chainlit Adapter
+    participant Adapter as UI Adapter
     participant Orch as OrchestratorAgent
     participant Worker as Worker Agent
     participant HITL as HumanInTheLoopMiddleware
@@ -89,7 +89,7 @@ sequenceDiagram
 
 ## Process Steps
 
-1. **User Input** → Chainlit UI receives message
+1. **User Input** → HR Assistant App receives message
 2. **HITL Check** → app.py checks for pending interrupt from previous turn
 3. **Session Context** → app.py builds AppContext (thread_id, first_name, display_name)
 4. **Orchestration** → OrchestratorAgent applies middleware, analyzes intent, selects specialist
@@ -100,7 +100,7 @@ sequenceDiagram
 9. **Result Extraction** → `extract_tool_calls_from_messages()` unwraps inner tool calls
 10. **Interrupt Extraction** → `extract_interrupts_from_messages()` finds HITL interrupts
 11. **UI Adaptation** → `render_tool_elements()` converts results to React components
-12. **Response Rendering** → Chainlit displays message with custom UI elements
+12. **Response Rendering** → HR Assistant App displays message with custom UI elements
 
 ## Thread ID Namespacing
 

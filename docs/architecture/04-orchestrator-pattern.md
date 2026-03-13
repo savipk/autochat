@@ -39,7 +39,7 @@ graph TB
         AggResult["Aggregate specialist<br/>response"]
         ExtractToolCalls["Extract inner tool_calls<br/>for adapter rendering"]
         ExtractInterrupts["Extract HITL interrupts<br/>for confirmation cards"]
-        ConvertUI["Convert to UI<br/>via Chainlit Adapter"]
+        ConvertUI["Convert to UI<br/>via UI Adapter"]
         ReturnOrch["Return to parent<br/>message loop"]
     end
 

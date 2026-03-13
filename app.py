@@ -430,6 +430,12 @@ async def on_message(message: cl.Message):
                                 "job_id": _tool_result["job_id"],
                                 "job": _tool_result.get("job", {}),
                             })
+                    elif tool_name == "view_candidate":
+                        if isinstance(_tool_result, dict) and _tool_result.get("employeeId"):
+                            push_panel_event(username, "open_candidate_panel", data={
+                                "employeeId": _tool_result["employeeId"],
+                                "candidate": _tool_result,
+                            })
                     elif tool_name == "jd_search":
                         if isinstance(_tool_result, dict) and _tool_result.get("success"):
                             similar_jds = _tool_result.get("similar_jds", [])
