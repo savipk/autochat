@@ -227,6 +227,7 @@ graph TB
 | `jd_compose` / `section_editor` | *(SSE panel)* | JD Editor side panel via SSE events |
 | `jd_search` | *(SSE panel)* | JD Editor side panel via SSE events |
 | `open_profile_panel` | *(side panel)* | Profile editor panel slides in |
+| `view_candidate` | `CandidateCard` + *(side panel)* | Candidate detail card + candidate panel via SSE |
 | `view_job` | *(side panel)* | Job details panel slides in |
 
 ## Key Points

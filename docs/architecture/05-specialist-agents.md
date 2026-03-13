@@ -317,7 +317,7 @@ Tools classified per the [AG-UI (Agent-User Interaction Protocol)](https://docs.
 | 5 | `jd_search` | JD Generator | UI panel control + data. Triggers `push_panel_event("open_jd_editor", data={...})` SSE at app.py:436. Opens JD Editor side panel and passes search results. The panel open is a frontend action. |
 | 6 | `jd_compose` | JD Generator | UI panel control + state persistence. Saves draft to `JDDraftManager` at app.py:444, then triggers `push_panel_event("refresh_jd_editor")` SSE. The panel refresh with new content is a frontend action. |
 | 7 | `section_editor` | JD Generator | UI panel control + state persistence. Updates section in `JDDraftManager` via `update_section()` at app.py:455, then triggers `push_panel_event("refresh_jd_editor")` SSE. Same pattern as `jd_compose`. |
-| 8 | `view_candidate` | Candidate Search | Frontend tool — will open a candidate profile panel via SSE, matching the `view_job` pattern. 
+| 8 | `view_candidate` | Candidate Search | UI navigation + card. Triggers `push_panel_event("open_candidate_panel")` SSE at app.py to open candidate detail panel, and renders a `CandidateCard` via the adapter. Same `navigateTo` pattern as `view_job`. |
 
 ### Backend Tools (11)
 
